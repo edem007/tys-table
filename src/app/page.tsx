@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const TARGET_DOLLARS = 120;
 const COOK_NIGHT_DEPOSIT = 16;
+
+type Deposit = {
+  id: string;
+  date: string;
+  dish: string;
+  amount: number;
+};
 
 function formatUsd(amount: number) {
   return new Intl.NumberFormat("en-US", {
@@ -14,12 +21,113 @@ function formatUsd(amount: number) {
   }).format(amount);
 }
 
+function formatMonthDay(isoDate: string) {
+  const d = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatPlusUsd(amount: number) {
+  const formatted = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.abs(amount));
+  return `+${formatted}`;
+}
+
 export default function Home() {
-  const [balance, setBalance] = useState(0);
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [cookModalOpen, setCookModalOpen] = useState(false);
+  const [dishInput, setDishInput] = useState("");
+  const [depositListExpanded, setDepositListExpanded] = useState(false);
+  const dishFieldRef = useRef<HTMLInputElement>(null);
+
+  const balance = deposits.reduce((sum, d) => sum + d.amount, 0);
 
   const progressPercent =
     TARGET_DOLLARS <= 0 ? 0 : Math.min((balance / TARGET_DOLLARS) * 100, 100);
   const targetMet = balance >= TARGET_DOLLARS;
+
+  const cookNightDeposits = deposits
+    .map((d, index) => ({ d, index }))
+    .filter(({ d }) => d.amount > 0)
+    .sort((a, b) => {
+      if (a.d.date !== b.d.date) return a.d.date < b.d.date ? 1 : -1;
+      return b.index - a.index;
+    })
+    .map(({ d }) => d);
+
+  const visibleCookNights = depositListExpanded
+    ? cookNightDeposits
+    : cookNightDeposits.slice(0, 7);
+  const hasMoreCookNights = cookNightDeposits.length > 7;
+
+  useEffect(() => {
+    if (!cookModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setCookModalOpen(false);
+        setDishInput("");
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [cookModalOpen]);
+
+  useEffect(() => {
+    if (cookModalOpen) {
+      dishFieldRef.current?.focus();
+    }
+  }, [cookModalOpen]);
+
+  function openCookModal() {
+    setDishInput("");
+    setCookModalOpen(true);
+  }
+
+  function closeCookModal() {
+    setCookModalOpen(false);
+    setDishInput("");
+  }
+
+  function confirmCookNight() {
+    const dish = dishInput.trim();
+    if (!dish) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    setDeposits((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        date: today,
+        dish,
+        amount: COOK_NIGHT_DEPOSIT,
+      },
+    ]);
+    closeCookModal();
+  }
+
+  function cashOut() {
+    setDeposits((prev) => {
+      const b = prev.reduce((s, d) => s + d.amount, 0);
+      if (b <= 0) return prev;
+      const today = new Date().toISOString().slice(0, 10);
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          date: today,
+          dish: "Cash out",
+          amount: -b,
+        },
+      ];
+    });
+  }
 
   return (
     <div className="min-h-full bg-[#F2EAD8] text-[#0F1310]">
@@ -78,13 +186,45 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="mt-14">
-          <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.2em] text-[#0F1310]/65">
-            Recent Cook Nights
-          </h2>
-          <div className="mt-4 rounded-lg border border-[#0F1310]/10 bg-[#F2EAD8] px-4 py-10 text-center">
-            <p className="font-sans text-sm text-[#0F1310]/60">No deposits yet</p>
-          </div>
+        <section className="mt-10 w-full text-left">
+          {cookNightDeposits.length === 0 ? (
+            <p className="text-center font-sans text-sm text-[#0F1310]/55">
+              No cook nights yet. Tonight&apos;s the night.
+            </p>
+          ) : (
+            <>
+              <ul className="w-full divide-y divide-dashed divide-[#D9CDB0]">
+                {visibleCookNights.map((d) => (
+                  <li key={d.id} className="flex items-start justify-between gap-4 py-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-sans text-sm text-[#0F1310]/55">
+                        {formatMonthDay(d.date)}
+                      </p>
+                      <p className="mt-1 font-serif text-base font-normal italic leading-snug text-[#0F1310]">
+                        {d.dish}
+                      </p>
+                    </div>
+                    <p className="shrink-0 pt-0.5 font-mono text-sm tabular-nums text-[#1F4D3A]">
+                      {formatPlusUsd(d.amount)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              {hasMoreCookNights ? (
+                <div className="mt-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDepositListExpanded((expanded) => !expanded)
+                    }
+                    className="font-sans text-sm font-medium text-[#0F1310]/60 underline decoration-[#D9CDB0] underline-offset-4 transition-colors hover:text-[#0F1310]"
+                  >
+                    {depositListExpanded ? "See less" : "See all"}
+                  </button>
+                </div>
+              ) : null}
+            </>
+          )}
         </section>
 
         <div className="mt-14">
@@ -95,7 +235,7 @@ export default function Home() {
               </p>
               <button
                 type="button"
-                onClick={() => setBalance(0)}
+                onClick={cashOut}
                 className="rounded-[2px] bg-[#0F1310] px-6 py-2.5 font-sans text-xs font-medium text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
               >
                 Start a new fund
@@ -104,14 +244,84 @@ export default function Home() {
           ) : (
             <button
               type="button"
-              onClick={() => setBalance((b) => b + COOK_NIGHT_DEPOSIT)}
-              className="w-full rounded-xl bg-[#0F1310] px-6 py-4 text-center font-sans text-lg font-semibold text-[#F2EAD8] transition-colors duration-200 hover:bg-[#C28840] hover:text-[#F2EAD8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+              onClick={openCookModal}
+              className="w-full rounded-[2px] bg-[#0F1310] px-8 py-4 text-center font-sans text-sm font-medium uppercase tracking-[0.04em] text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
             >
               I Cooked Tonight
             </button>
           )}
         </div>
       </main>
+
+      {cookModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1310]/40 p-6"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeCookModal();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cook-modal-title"
+            className="w-full max-w-[480px] border-t-[3px] border-t-[#7A2A1E] bg-[#F2EAD8] p-8 shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="cook-modal-title"
+              className="text-center font-serif text-2xl font-normal italic leading-snug text-[#0F1310]"
+            >
+              What did you cook tonight?
+            </h2>
+            <form
+              className="mt-8"
+              onSubmit={(e) => {
+                e.preventDefault();
+                confirmCookNight();
+              }}
+            >
+              <label htmlFor="cook-dish-input" className="sr-only">
+                Dish name
+              </label>
+              <input
+                id="cook-dish-input"
+                ref={dishFieldRef}
+                type="text"
+                name="dish"
+                value={dishInput}
+                onChange={(e) => setDishInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") closeCookModal();
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    confirmCookNight();
+                  }
+                }}
+                placeholder="e.g. Red beans & rice"
+                autoComplete="off"
+                className="w-full border-0 border-b border-[#D9CDB0] bg-transparent px-0 py-3 font-sans text-sm text-[#0F1310] outline-none ring-0 transition-colors placeholder:text-[#0F1310]/35 focus:border-b-[#7A2A1E] focus:ring-0"
+              />
+              <div className="mt-10 flex items-center justify-between gap-4">
+                <button
+                  type="button"
+                  onClick={closeCookModal}
+                  className="bg-transparent px-2 py-2 font-sans text-sm font-medium text-[#0F1310] transition-colors hover:text-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-[2px] bg-[#0F1310] px-6 py-2.5 font-sans text-sm font-medium text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#0F1310]"
+                  disabled={!dishInput.trim()}
+                >
+                  Add to Bank
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
