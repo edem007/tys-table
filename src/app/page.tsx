@@ -199,10 +199,10 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-full bg-[#F2EAD8] text-[#0F1310]">
-      <main className="mx-auto w-full max-w-lg px-6 py-12 sm:py-16">
-        <header className="mb-12 text-center sm:mb-16">
-          <p className="font-serif text-4xl font-medium italic tracking-tight text-[#0F1310] sm:text-5xl">
+    <div className="min-h-full min-h-[100dvh] bg-[#F2EAD8] text-[#0F1310]">
+      <main className="mx-auto w-full max-w-lg px-4 py-8 min-[600px]:px-8 min-[600px]:py-12">
+        <header className="mb-8 text-center min-[600px]:mb-16">
+          <p className="font-serif text-[2rem] font-medium italic leading-tight tracking-tight text-[#0F1310] min-[600px]:text-5xl min-[600px]:leading-none">
             Ty&apos;s Table
           </p>
           <p className="mt-3 font-mono text-[11px] font-normal uppercase tracking-[0.22em] text-[#0F1310]/70">
@@ -210,16 +210,16 @@ export default function Home() {
           </p>
         </header>
 
-        <section className="flex flex-col items-center text-center">
+        <section className="flex w-full flex-col items-stretch text-center min-[600px]:items-center">
           <p
-            className="font-serif flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 leading-none"
+            className="font-serif flex w-full flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 leading-none min-[600px]:gap-x-2"
             aria-live="polite"
           >
-            <span className="text-[96px] font-normal tracking-[-0.03em] text-[#7A2A1E]">
+            <span className="text-[64px] font-normal tracking-[-0.03em] text-[#7A2A1E] min-[600px]:text-[96px]">
               {formatUsd(balance)}
             </span>
             <span
-              className="translate-y-[-0.08em] px-0.5 font-normal text-[22px] text-[#0F1310]/30"
+              className="translate-y-[-0.06em] px-0.5 font-normal text-[15px] text-[#0F1310]/30 min-[600px]:translate-y-[-0.08em] min-[600px]:text-[22px]"
               aria-hidden="true"
             >
               /
@@ -247,20 +247,20 @@ export default function Home() {
                     setEditingTargetAmount(false);
                   }
                 }}
-                className={`inline-block w-[6.5ch] max-w-full text-center font-serif text-[32px] font-normal italic tabular-nums text-[#C28840] ${EDITORIAL_FIELD_CLASS}`}
+                className={`inline-block w-[5.5ch] max-w-full text-center font-serif text-[22px] font-normal italic tabular-nums text-[#C28840] min-[600px]:w-[6.5ch] min-[600px]:text-[32px] ${EDITORIAL_FIELD_CLASS}`}
               />
             ) : (
               <button
                 type="button"
                 onClick={beginEditTargetAmount}
-                className="cursor-pointer border-0 bg-transparent p-0 text-[32px] font-normal italic leading-none text-[#C28840] underline decoration-transparent decoration-1 underline-offset-[0.12em] transition-colors hover:decoration-[#C28840]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+                className="cursor-pointer border-0 bg-transparent p-0 text-[22px] font-normal italic leading-none text-[#C28840] underline decoration-transparent decoration-1 underline-offset-[0.12em] transition-colors hover:decoration-[#C28840]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] min-[600px]:text-[32px]"
                 aria-label="Edit savings target amount"
               >
                 {formatUsd(targetAmount)}
               </button>
             )}
           </p>
-          <div className="mt-8 flex w-full max-w-md justify-center px-2">
+          <div className="mt-6 flex w-full max-w-none justify-center px-0 min-[600px]:mt-8 min-[600px]:max-w-md min-[600px]:px-2">
             {editingFundName ? (
               <input
                 ref={fundNameInputRef}
@@ -283,13 +283,13 @@ export default function Home() {
                     setEditingFundName(false);
                   }
                 }}
-                className={`w-full text-center font-sans text-lg font-medium text-[#1F4D3A] ${EDITORIAL_FIELD_CLASS}`}
+                className={`w-full text-center font-sans text-base font-medium text-[#1F4D3A] min-[600px]:text-lg ${EDITORIAL_FIELD_CLASS}`}
               />
             ) : (
               <button
                 type="button"
                 onClick={beginEditFundName}
-                className="cursor-pointer border-0 bg-transparent p-0 text-center font-sans text-lg font-medium text-[#1F4D3A] underline decoration-transparent decoration-1 underline-offset-[0.15em] transition-colors hover:decoration-[#1F4D3A]/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+                className="cursor-pointer border-0 bg-transparent p-0 text-center font-sans text-base font-medium text-[#1F4D3A] underline decoration-transparent decoration-1 underline-offset-[0.15em] transition-colors hover:decoration-[#1F4D3A]/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] min-[600px]:text-lg"
                 aria-label="Edit fund name"
               >
                 {fundName}
@@ -297,7 +297,7 @@ export default function Home() {
             )}
           </div>
 
-          <div className="mt-4 flex w-full max-w-md flex-wrap justify-center gap-2 px-2">
+          <div className="mt-3 flex w-full max-w-none flex-wrap justify-center gap-2 px-0 min-[600px]:mt-4 min-[600px]:max-w-md min-[600px]:px-2">
             {FUND_NAME_PRESETS.map((preset) => (
               <button
                 key={preset.label}
@@ -313,7 +313,7 @@ export default function Home() {
           </div>
 
           <div
-            className="mt-6 w-full overflow-hidden rounded-full border border-[#D9CDB0]"
+            className="mt-5 w-full overflow-hidden rounded-full border border-[#D9CDB0] min-[600px]:mt-6"
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={targetAmount}
@@ -335,7 +335,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="mt-10 w-full text-left">
+        <section className="mt-8 w-full text-left min-[600px]:mt-10">
           {cookNightDeposits.length === 0 ? (
             <p className="text-center font-sans text-sm text-[#0F1310]/55">
               No cook nights yet. Tonight&apos;s the night.
@@ -376,10 +376,10 @@ export default function Home() {
           )}
         </section>
 
-        <div className="mt-14">
+        <div className="mt-10 min-[600px]:mt-14">
           {targetMet ? (
-            <div className="flex flex-col items-center gap-8 text-center [animation:celebration-fade-in_0.75s_ease-out_forwards]">
-              <p className="max-w-md font-serif text-[32px] font-normal italic leading-snug text-[#0F1310]">
+            <div className="flex flex-col items-center gap-6 text-center [animation:celebration-fade-in_0.75s_ease-out_forwards] min-[600px]:gap-8">
+              <p className="max-w-md px-1 font-serif text-xl font-normal italic leading-snug text-[#0F1310] min-[600px]:px-0 min-[600px]:text-[32px]">
                 You earned this. {fundName} is paid for.
               </p>
               <button
@@ -404,7 +404,7 @@ export default function Home() {
 
       {cookModalOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1310]/40 p-6"
+          className="fixed inset-0 z-50 flex max-[599px]:flex-col max-[599px]:bg-[#F2EAD8] min-[600px]:items-center min-[600px]:justify-center min-[600px]:bg-[#0F1310]/40 min-[600px]:p-6"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) closeCookModal();
@@ -414,54 +414,56 @@ export default function Home() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="cook-modal-title"
-            className="w-full max-w-[480px] border-t-[3px] border-t-[#7A2A1E] bg-[#F2EAD8] p-8 shadow-xl"
+            className="flex max-h-[100dvh] w-full max-w-[480px] flex-col overflow-hidden border-t-[3px] border-t-[#7A2A1E] bg-[#F2EAD8] shadow-xl max-[599px]:max-h-none max-[599px]:min-h-0 max-[599px]:max-w-none max-[599px]:flex-1 min-[600px]:max-h-[min(90vh,880px)] min-[600px]:rounded-none"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h2
-              id="cook-modal-title"
-              className="text-center font-serif text-2xl font-normal italic leading-snug text-[#0F1310]"
-            >
-              What did you cook tonight?
-            </h2>
             <form
-              className="mt-8"
+              className="flex min-h-0 flex-1 flex-col"
               onSubmit={(e) => {
                 e.preventDefault();
                 confirmCookNight();
               }}
             >
-              <label htmlFor="cook-dish-input" className="sr-only">
-                Dish name
-              </label>
-              <input
-                id="cook-dish-input"
-                ref={dishFieldRef}
-                type="text"
-                name="dish"
-                value={dishInput}
-                onChange={(e) => setDishInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") closeCookModal();
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    confirmCookNight();
-                  }
-                }}
-                placeholder="e.g. Red beans & rice"
-                autoComplete="off"
-                className="w-full border-0 border-b border-[#D9CDB0] bg-transparent px-0 py-3 font-sans text-sm text-[#0F1310] outline-none ring-0 transition-colors placeholder:text-[#0F1310]/35 focus:border-b-[#7A2A1E] focus:ring-0"
-              />
-              <div className="mt-10 flex items-center justify-between gap-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-[max(1.25rem,env(safe-area-inset-top))] min-[600px]:px-8 min-[600px]:pb-8 min-[600px]:pt-8">
+                <h2
+                  id="cook-modal-title"
+                  className="text-center font-serif text-xl font-normal italic leading-snug text-[#0F1310] min-[600px]:text-2xl"
+                >
+                  What did you cook tonight?
+                </h2>
+                <label htmlFor="cook-dish-input" className="sr-only">
+                  Dish name
+                </label>
+                <input
+                  id="cook-dish-input"
+                  ref={dishFieldRef}
+                  type="text"
+                  name="dish"
+                  value={dishInput}
+                  onChange={(e) => setDishInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") closeCookModal();
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      confirmCookNight();
+                    }
+                  }}
+                  placeholder="e.g. Red beans & rice"
+                  autoComplete="off"
+                  className="mt-6 w-full border-0 border-b border-[#D9CDB0] bg-transparent px-0 py-3 font-sans text-sm text-[#0F1310] outline-none ring-0 transition-colors placeholder:text-[#0F1310]/35 focus:border-b-[#7A2A1E] focus:ring-0 min-[600px]:mt-8"
+                />
+              </div>
+              <div className="mt-auto flex w-full shrink-0 flex-col gap-3 border-t border-[#D9CDB0] bg-[#F2EAD8] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] min-[600px]:flex-row min-[600px]:items-center min-[600px]:justify-between min-[600px]:gap-4 min-[600px]:border-t-0 min-[600px]:bg-transparent min-[600px]:p-8 min-[600px]:pb-8 min-[600px]:pt-0">
                 <button
                   type="button"
                   onClick={closeCookModal}
-                  className="bg-transparent px-2 py-2 font-sans text-sm font-medium text-[#0F1310] transition-colors hover:text-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+                  className="w-full bg-transparent py-3 text-center font-sans text-sm font-medium text-[#0F1310] transition-colors hover:text-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] min-[600px]:w-auto min-[600px]:px-2 min-[600px]:py-2 min-[600px]:text-left"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-[2px] bg-[#0F1310] px-6 py-2.5 font-sans text-sm font-medium text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#0F1310]"
+                  className="w-full rounded-[2px] bg-[#0F1310] py-3.5 text-center font-sans text-sm font-medium text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#0F1310] min-[600px]:w-auto min-[600px]:px-6 min-[600px]:py-2.5"
                   disabled={!dishInput.trim()}
                 >
                   Add to Bank
