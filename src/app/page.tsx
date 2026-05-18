@@ -2,8 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const TARGET_DOLLARS = 120;
 const COOK_NIGHT_DEPOSIT = 16;
+const DEFAULT_FUND_NAME = "Stone Water Fund";
+const DEFAULT_TARGET_AMOUNT = 120;
+const MIN_TARGET_AMOUNT = 20;
+const MAX_TARGET_AMOUNT = 2000;
+
+const EDITORIAL_FIELD_CLASS =
+  "min-w-0 border-0 border-b border-[#D9CDB0] bg-transparent px-0 outline-none ring-0 transition-colors focus:border-b-[#7A2A1E] focus:ring-0";
+
+const FUND_NAME_PRESETS = [
+  { label: "Stone Water Sunday", amount: 120 },
+  { label: "Date Night Out", amount: 90 },
+  { label: "Bishop Arts Dinner", amount: 80 },
+  { label: "Concert Night", amount: 150 },
+] as const;
 
 type Deposit = {
   id: string;
@@ -42,16 +55,64 @@ function formatPlusUsd(amount: number) {
 
 export default function Home() {
   const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [fundName, setFundName] = useState(DEFAULT_FUND_NAME);
+  const [targetAmount, setTargetAmount] = useState(DEFAULT_TARGET_AMOUNT);
+  const [editingFundName, setEditingFundName] = useState(false);
+  const [fundNameDraft, setFundNameDraft] = useState("");
+  const [editingTargetAmount, setEditingTargetAmount] = useState(false);
+  const [targetAmountDraft, setTargetAmountDraft] = useState("");
   const [cookModalOpen, setCookModalOpen] = useState(false);
   const [dishInput, setDishInput] = useState("");
   const [depositListExpanded, setDepositListExpanded] = useState(false);
   const dishFieldRef = useRef<HTMLInputElement>(null);
+  const fundNameInputRef = useRef<HTMLInputElement>(null);
+  const targetAmountInputRef = useRef<HTMLInputElement>(null);
 
   const balance = deposits.reduce((sum, d) => sum + d.amount, 0);
 
   const progressPercent =
-    TARGET_DOLLARS <= 0 ? 0 : Math.min((balance / TARGET_DOLLARS) * 100, 100);
-  const targetMet = balance >= TARGET_DOLLARS;
+    targetAmount <= 0 ? 0 : Math.min((balance / targetAmount) * 100, 100);
+  const targetMet = balance >= targetAmount;
+
+  function commitFundName() {
+    const trimmed = fundNameDraft.trim().slice(0, 40);
+    if (trimmed) setFundName(trimmed);
+    setEditingFundName(false);
+  }
+
+  function commitTargetAmount() {
+    const digits = targetAmountDraft.replace(/\D/g, "");
+    const n = parseInt(digits, 10);
+    if (
+      Number.isFinite(n) &&
+      n >= MIN_TARGET_AMOUNT &&
+      n <= MAX_TARGET_AMOUNT
+    ) {
+      setTargetAmount(n);
+    }
+    setEditingTargetAmount(false);
+  }
+
+  function beginEditFundName() {
+    if (editingTargetAmount) commitTargetAmount();
+    setFundNameDraft(fundName);
+    setEditingFundName(true);
+    setEditingTargetAmount(false);
+  }
+
+  function beginEditTargetAmount() {
+    if (editingFundName) commitFundName();
+    setTargetAmountDraft(String(targetAmount));
+    setEditingTargetAmount(true);
+    setEditingFundName(false);
+  }
+
+  function applyFundPreset(label: string, amount: number) {
+    setEditingFundName(false);
+    setEditingTargetAmount(false);
+    setFundName(label.slice(0, 40));
+    setTargetAmount(amount);
+  }
 
   const cookNightDeposits = deposits
     .map((d, index) => ({ d, index }))
@@ -84,6 +145,14 @@ export default function Home() {
       dishFieldRef.current?.focus();
     }
   }, [cookModalOpen]);
+
+  useEffect(() => {
+    if (editingFundName) fundNameInputRef.current?.focus();
+  }, [editingFundName]);
+
+  useEffect(() => {
+    if (editingTargetAmount) targetAmountInputRef.current?.focus();
+  }, [editingTargetAmount]);
 
   function openCookModal() {
     setDishInput("");
@@ -155,19 +224,99 @@ export default function Home() {
             >
               /
             </span>
-            <span className="text-[32px] font-normal italic text-[#C28840]">
-              {formatUsd(TARGET_DOLLARS)}
-            </span>
+            {editingTargetAmount ? (
+              <input
+                ref={targetAmountInputRef}
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                aria-label="Savings target amount"
+                value={targetAmountDraft}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                  setTargetAmountDraft(digits);
+                }}
+                onBlur={commitTargetAmount}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitTargetAmount();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setEditingTargetAmount(false);
+                  }
+                }}
+                className={`inline-block w-[6.5ch] max-w-full text-center font-serif text-[32px] font-normal italic tabular-nums text-[#C28840] ${EDITORIAL_FIELD_CLASS}`}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={beginEditTargetAmount}
+                className="cursor-pointer border-0 bg-transparent p-0 text-[32px] font-normal italic leading-none text-[#C28840] underline decoration-transparent decoration-1 underline-offset-[0.12em] transition-colors hover:decoration-[#C28840]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+                aria-label="Edit savings target amount"
+              >
+                {formatUsd(targetAmount)}
+              </button>
+            )}
           </p>
-          <p className="mt-8 font-sans text-lg font-medium text-[#1F4D3A]">
-            Stone Water Fund
-          </p>
+          <div className="mt-8 flex w-full max-w-md justify-center px-2">
+            {editingFundName ? (
+              <input
+                ref={fundNameInputRef}
+                type="text"
+                maxLength={40}
+                autoComplete="off"
+                aria-label="Fund name"
+                value={fundNameDraft}
+                onChange={(e) =>
+                  setFundNameDraft(e.target.value.slice(0, 40))
+                }
+                onBlur={commitFundName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitFundName();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setEditingFundName(false);
+                  }
+                }}
+                className={`w-full text-center font-sans text-lg font-medium text-[#1F4D3A] ${EDITORIAL_FIELD_CLASS}`}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={beginEditFundName}
+                className="cursor-pointer border-0 bg-transparent p-0 text-center font-sans text-lg font-medium text-[#1F4D3A] underline decoration-transparent decoration-1 underline-offset-[0.15em] transition-colors hover:decoration-[#1F4D3A]/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+                aria-label="Edit fund name"
+              >
+                {fundName}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-4 flex w-full max-w-md flex-wrap justify-center gap-2 px-2">
+            {FUND_NAME_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() =>
+                  applyFundPreset(preset.label, preset.amount)
+                }
+                className="rounded-full border border-[#D9CDB0] bg-transparent px-[14px] py-[6px] font-sans text-[12px] font-medium leading-tight text-[#0F1310] transition-colors hover:border-[#0F1310] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
 
           <div
             className="mt-6 w-full overflow-hidden rounded-full border border-[#D9CDB0]"
             role="progressbar"
             aria-valuemin={0}
-            aria-valuemax={TARGET_DOLLARS}
+            aria-valuemax={targetAmount}
             aria-valuenow={balance}
             aria-label="Progress toward savings target"
           >
@@ -231,7 +380,7 @@ export default function Home() {
           {targetMet ? (
             <div className="flex flex-col items-center gap-8 text-center [animation:celebration-fade-in_0.75s_ease-out_forwards]">
               <p className="max-w-md font-serif text-[32px] font-normal italic leading-snug text-[#0F1310]">
-                You earned this. Stone Water is paid for.
+                You earned this. {fundName} is paid for.
               </p>
               <button
                 type="button"
