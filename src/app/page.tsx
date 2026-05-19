@@ -200,7 +200,13 @@ export default function Home() {
 
   return (
     <div className="min-h-full min-h-[100dvh] bg-[#F2EAD8] text-[#0F1310]">
-      <main className="mx-auto w-full max-w-lg px-4 py-8 min-[600px]:px-8 min-[600px]:py-12">
+      <main
+        className={`mx-auto w-full max-w-lg px-4 py-8 min-[600px]:px-8 min-[600px]:py-12 ${
+          !targetMet
+            ? "max-[599px]:pb-[calc(5.75rem+env(safe-area-inset-bottom))]"
+            : ""
+        }`}
+      >
         <header className="mb-8 text-center min-[600px]:mb-16">
           <p className="font-serif text-[2rem] font-medium italic leading-tight tracking-tight text-[#0F1310] min-[600px]:text-5xl min-[600px]:leading-none">
             Ty&apos;s Table
@@ -376,8 +382,8 @@ export default function Home() {
           )}
         </section>
 
-        <div className="mt-10 min-[600px]:mt-14">
-          {targetMet ? (
+        {targetMet ? (
+          <div className="mt-10 min-[600px]:mt-14">
             <div className="flex flex-col items-center gap-6 text-center [animation:celebration-fade-in_0.75s_ease-out_forwards] min-[600px]:gap-8">
               <p className="max-w-md px-1 font-serif text-xl font-normal italic leading-snug text-[#0F1310] min-[600px]:px-0 min-[600px]:text-[32px]">
                 You earned this. {fundName} is paid for.
@@ -390,16 +396,24 @@ export default function Home() {
                 Start a new fund
               </button>
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={openCookModal}
-              className="w-full rounded-[2px] bg-[#0F1310] px-8 py-4 text-center font-sans text-sm font-medium uppercase tracking-[0.04em] text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
-            >
-              I Cooked Tonight
-            </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div
+            className={`max-[599px]:fixed max-[599px]:inset-x-0 max-[599px]:bottom-0 max-[599px]:z-40 max-[599px]:flex max-[599px]:justify-center border-t border-[#D9CDB0]/60 bg-[#F2EAD8]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm min-[600px]:relative min-[600px]:mt-14 min-[600px]:border-0 min-[600px]:bg-transparent min-[600px]:p-0 min-[600px]:backdrop-blur-none ${
+              cookModalOpen ? "max-[599px]:hidden" : ""
+            }`}
+          >
+            <div className="w-full max-w-lg">
+              <button
+                type="button"
+                onClick={openCookModal}
+                className="w-full rounded-[2px] bg-[#0F1310] px-8 py-4 text-center font-sans text-sm font-medium uppercase tracking-[0.04em] text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+              >
+                I Cooked Tonight
+              </button>
+            </div>
+          </div>
+        )}
       </main>
 
       {cookModalOpen ? (
