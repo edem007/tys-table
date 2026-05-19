@@ -20,7 +20,7 @@ const dmMono = DM_Mono({
 
 export const metadata: Metadata = {
   title: "Ty's Table",
-  description: "Ty's Table — Savings Bank",
+  description: "Ty's Table - Savings Bank",
   applicationName: "Ty's Table",
   manifest: "/manifest.json",
   appleWebApp: {
