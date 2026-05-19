@@ -201,13 +201,13 @@ export default function Home() {
   return (
     <div className="min-h-full min-h-[100dvh] bg-[#F2EAD8] text-[#0F1310]">
       <main
-        className={`mx-auto w-full max-w-lg px-4 py-8 min-[600px]:px-8 min-[600px]:py-12 ${
+        className={`mx-auto w-full max-w-lg px-4 pt-8 pb-8 min-[600px]:px-8 min-[600px]:pt-14 min-[600px]:pb-12 ${
           !targetMet
             ? "max-[599px]:pb-[calc(5.75rem+env(safe-area-inset-bottom))]"
             : ""
         }`}
       >
-        <header className="mb-8 text-center min-[600px]:mb-16">
+        <header className="mb-12 text-center min-[600px]:mb-16">
           <p className="font-serif text-[2rem] font-medium italic leading-tight tracking-tight text-[#0F1310] min-[600px]:text-5xl min-[600px]:leading-none">
             Ty&apos;s Table
           </p>
