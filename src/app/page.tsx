@@ -55,8 +55,12 @@ function formatPlusUsd(amount: number) {
 
 export default function Home() {
   const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [balance, setBalance] = useState(0);
   const [fundName, setFundName] = useState(DEFAULT_FUND_NAME);
   const [targetAmount, setTargetAmount] = useState(DEFAULT_TARGET_AMOUNT);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmittingDeposit, setIsSubmittingDeposit] = useState(false);
   const [editingFundName, setEditingFundName] = useState(false);
   const [fundNameDraft, setFundNameDraft] = useState("");
   const [editingTargetAmount, setEditingTargetAmount] = useState(false);
@@ -68,7 +72,55 @@ export default function Home() {
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
 
-  const balance = deposits.reduce((sum, d) => sum + d.amount, 0);
+  async function fetchBank() {
+    const res = await fetch("/api/bank");
+    if (!res.ok) {
+      const errBody = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+      throw new Error(errBody.error ?? `Failed to load bank (${res.status})`);
+    }
+    const data = (await res.json()) as BankGetResponse;
+    setDeposits(data.deposits);
+    setBalance(data.balance);
+    setFundName(data.target_name);
+    setTargetAmount(data.target_amount);
+    setErrorMessage(null);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/bank");
+        if (!res.ok) {
+          const errBody = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+          throw new Error(errBody.error ?? `Failed to load bank (${res.status})`);
+        }
+        const data = (await res.json()) as BankGetResponse;
+        if (cancelled) return;
+        setDeposits(data.deposits);
+        setBalance(data.balance);
+        setFundName(data.target_name);
+        setTargetAmount(data.target_amount);
+        setErrorMessage(null);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setErrorMessage(
+            err instanceof Error ? err.message : "Failed to load bank",
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const progressPercent =
     targetAmount <= 0 ? 0 : Math.min((balance / targetAmount) * 100, 100);
@@ -164,21 +216,35 @@ export default function Home() {
     setDishInput("");
   }
 
-  function confirmCookNight() {
+  async function handleDeposit() {
     const dish = dishInput.trim();
-    if (!dish) return;
+    if (!dish || isSubmittingDeposit) return;
 
-    const today = new Date().toISOString().slice(0, 10);
-    setDeposits((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        date: today,
-        dish,
-        amount: COOK_NIGHT_DEPOSIT,
-      },
-    ]);
-    closeCookModal();
+    setIsSubmittingDeposit(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch("/api/bank", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dish, amount: COOK_NIGHT_DEPOSIT }),
+      });
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+        throw new Error(
+          errBody.error ?? `Failed to save deposit (${res.status})`,
+        );
+      }
+      (await res.json()) as DepositPostResponse;
+      await fetchBank();
+      closeCookModal();
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to save deposit",
+      );
+    } finally {
+      setIsSubmittingDeposit(false);
+    }
   }
 
   function cashOut() {
@@ -186,7 +252,7 @@ export default function Home() {
       const b = prev.reduce((s, d) => s + d.amount, 0);
       if (b <= 0) return prev;
       const today = new Date().toISOString().slice(0, 10);
-      return [
+      const next = [
         ...prev,
         {
           id: crypto.randomUUID(),
@@ -195,6 +261,8 @@ export default function Home() {
           amount: -b,
         },
       ];
+      setBalance(0);
+      return next;
     });
   }
 
@@ -216,13 +284,22 @@ export default function Home() {
           </p>
         </header>
 
+        {errorMessage ? (
+          <p
+            role="alert"
+            className="mb-4 text-center font-sans text-sm text-[#7A2A1E]"
+          >
+            {errorMessage}
+          </p>
+        ) : null}
+
         <section className="flex w-full flex-col items-stretch text-center min-[600px]:items-center">
           <p
             className="font-serif flex w-full flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 leading-none min-[600px]:gap-x-2"
             aria-live="polite"
           >
             <span className="text-[64px] font-normal tracking-[-0.03em] text-[#7A2A1E] min-[600px]:text-[96px]">
-              {formatUsd(balance)}
+              {isLoading ? "Loading..." : formatUsd(balance)}
             </span>
             <span
               className="translate-y-[-0.06em] px-0.5 font-normal text-[15px] text-[#0F1310]/30 min-[600px]:translate-y-[-0.08em] min-[600px]:text-[22px]"
@@ -435,7 +512,7 @@ export default function Home() {
               className="flex min-h-0 flex-1 flex-col"
               onSubmit={(e) => {
                 e.preventDefault();
-                confirmCookNight();
+                void handleDeposit();
               }}
             >
               <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-[max(1.25rem,env(safe-area-inset-top))] min-[600px]:px-8 min-[600px]:pb-8 min-[600px]:pt-8">
@@ -459,7 +536,7 @@ export default function Home() {
                     if (e.key === "Escape") closeCookModal();
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      confirmCookNight();
+                      void handleDeposit();
                     }
                   }}
                   placeholder="e.g. Red beans & rice"
@@ -478,9 +555,9 @@ export default function Home() {
                 <button
                   type="submit"
                   className="w-full rounded-[2px] bg-[#0F1310] py-3.5 text-center font-sans text-sm font-medium text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#0F1310] min-[600px]:w-auto min-[600px]:px-6 min-[600px]:py-2.5"
-                  disabled={!dishInput.trim()}
+                  disabled={!dishInput.trim() || isSubmittingDeposit}
                 >
-                  Add to Bank
+                  {isSubmittingDeposit ? "Saving..." : "Add to Bank"}
                 </button>
               </div>
             </form>
