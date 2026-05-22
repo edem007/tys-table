@@ -29,10 +29,7 @@ export interface DepositPostBody {
   amount?: number;
 }
 
-export interface DepositPostResponse {
-  success: true;
-  deposit: Deposit;
-}
+export type DepositPostResponse = BankGetResponse;
 
 interface BankFile {
   deposits: Deposit[];
@@ -154,8 +151,10 @@ export async function POST(request: Request) {
     await writeBank(bank);
 
     const response: DepositPostResponse = {
-      success: true,
-      deposit,
+      balance: computeBalance(bank.deposits),
+      target_name: bank.target_name,
+      target_amount: bank.target_amount,
+      deposits: bank.deposits,
     };
 
     return NextResponse.json(response);

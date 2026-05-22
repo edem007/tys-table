@@ -25,6 +25,19 @@ type Deposit = {
   amount: number;
 };
 
+type BankGetResponse = {
+  deposits: Deposit[];
+  balance: number;
+  target_name: string;
+  target_amount: number;
+};
+
+type DepositPostResponse = BankGetResponse;
+
+type ApiErrorResponse = {
+  error: string;
+};
+
 function formatUsd(amount: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -72,18 +85,23 @@ export default function Home() {
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
 
-  async function fetchBank() {
+  function applyBankResponse(data: BankGetResponse) {
+    setDeposits(data.deposits);
+    setBalance(data.balance);
+    setFundName(data.target_name);
+    setTargetAmount(data.target_amount);
+    setErrorMessage(null);
+  }
+
+  async function fetchBank(): Promise<BankGetResponse> {
     const res = await fetch("/api/bank");
     if (!res.ok) {
       const errBody = (await res.json().catch(() => ({}))) as ApiErrorResponse;
       throw new Error(errBody.error ?? `Failed to load bank (${res.status})`);
     }
     const data = (await res.json()) as BankGetResponse;
-    setDeposits(data.deposits);
-    setBalance(data.balance);
-    setFundName(data.target_name);
-    setTargetAmount(data.target_amount);
-    setErrorMessage(null);
+    applyBankResponse(data);
+    return data;
   }
 
   useEffect(() => {
@@ -99,11 +117,7 @@ export default function Home() {
         }
         const data = (await res.json()) as BankGetResponse;
         if (cancelled) return;
-        setDeposits(data.deposits);
-        setBalance(data.balance);
-        setFundName(data.target_name);
-        setTargetAmount(data.target_amount);
-        setErrorMessage(null);
+        applyBankResponse(data);
       } catch (err) {
         console.error(err);
         if (!cancelled) {
@@ -234,8 +248,8 @@ export default function Home() {
           errBody.error ?? `Failed to save deposit (${res.status})`,
         );
       }
-      (await res.json()) as DepositPostResponse;
-      await fetchBank();
+      const data = (await res.json()) as DepositPostResponse;
+      applyBankResponse(data);
       closeCookModal();
     } catch (err) {
       console.error(err);
