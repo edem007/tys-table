@@ -1,14 +1,13 @@
 /**
- * Ty's Table — Savings Bank API (Stage 2)
+ * Ty's Table — Savings Bank API (local file storage)
  *
- * Persists state in Vercel KV:
+ * Persists state in data/bank.json:
  *   - deposits      → Deposit[]
  *   - target_name   → string
  *   - target_amount → number
- *
- * Requires KV_REST_API_URL and KV_REST_API_TOKEN (linked KV store on Vercel).
  */
-import { kv } from "@vercel/kv";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { NextResponse } from "next/server";
 
 export interface Deposit {
@@ -35,9 +34,14 @@ export interface DepositPostResponse {
   deposit: Deposit;
 }
 
-const KV_KEY_DEPOSITS = "deposits";
-const KV_KEY_TARGET_NAME = "target_name";
-const KV_KEY_TARGET_AMOUNT = "target_amount";
+interface BankFile {
+  deposits: Deposit[];
+  target_name: string;
+  target_amount: number;
+}
+
+const DATA_DIR = path.join(process.cwd(), "data");
+const BANK_FILE = path.join(DATA_DIR, "bank.json");
 
 const DEFAULT_TARGET_NAME = "Stone Water Fund";
 const DEFAULT_TARGET_AMOUNT = 120;
@@ -52,32 +56,57 @@ function computeBalance(deposits: Deposit[]): number {
   return deposits.reduce((sum, d) => sum + d.amount, 0);
 }
 
-/** GET /api/bank — load full bank snapshot from KV */
+function defaultBank(): BankFile {
+  return {
+    deposits: [],
+    target_name: DEFAULT_TARGET_NAME,
+    target_amount: DEFAULT_TARGET_AMOUNT,
+  };
+}
+
+function normalizeBank(raw: unknown): BankFile {
+  if (!raw || typeof raw !== "object") return defaultBank();
+  const o = raw as Partial<BankFile>;
+  const deposits = Array.isArray(o.deposits) ? o.deposits : [];
+  const target_name =
+    typeof o.target_name === "string" && o.target_name.trim()
+      ? o.target_name
+      : DEFAULT_TARGET_NAME;
+  const target_amount =
+    typeof o.target_amount === "number" && Number.isFinite(o.target_amount)
+      ? o.target_amount
+      : DEFAULT_TARGET_AMOUNT;
+  return { deposits, target_name, target_amount };
+}
+
+async function readBank(): Promise<BankFile> {
+  try {
+    const text = await fs.readFile(BANK_FILE, "utf8");
+    return normalizeBank(JSON.parse(text));
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return defaultBank();
+    throw err;
+  }
+}
+
+async function writeBank(bank: BankFile): Promise<void> {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  const tmp = `${BANK_FILE}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(bank, null, 2), "utf8");
+  await fs.rename(tmp, BANK_FILE);
+}
+
+/** GET /api/bank — load full bank snapshot from disk */
 export async function GET() {
   try {
-    const [rawDeposits, rawTargetName, rawTargetAmount] = await Promise.all([
-      kv.get<Deposit[]>(KV_KEY_DEPOSITS),
-      kv.get<string>(KV_KEY_TARGET_NAME),
-      kv.get<number>(KV_KEY_TARGET_AMOUNT),
-    ]);
-
-    const deposits = Array.isArray(rawDeposits) ? rawDeposits : [];
-    const target_name =
-      typeof rawTargetName === "string" && rawTargetName.trim()
-        ? rawTargetName
-        : DEFAULT_TARGET_NAME;
-    const target_amount =
-      typeof rawTargetAmount === "number" && Number.isFinite(rawTargetAmount)
-        ? rawTargetAmount
-        : DEFAULT_TARGET_AMOUNT;
-
+    const bank = await readBank();
     const body: BankGetResponse = {
-      balance: computeBalance(deposits),
-      target_name,
-      target_amount,
-      deposits,
+      balance: computeBalance(bank.deposits),
+      target_name: bank.target_name,
+      target_amount: bank.target_amount,
+      deposits: bank.deposits,
     };
-
     return NextResponse.json(body);
   } catch (err) {
     return NextResponse.json(
@@ -120,11 +149,9 @@ export async function POST(request: Request) {
       amount,
     };
 
-    const rawDeposits = await kv.get<Deposit[]>(KV_KEY_DEPOSITS);
-    const deposits = Array.isArray(rawDeposits) ? rawDeposits : [];
-    const updatedDeposits = [...deposits, deposit];
-
-    await kv.set(KV_KEY_DEPOSITS, updatedDeposits);
+    const bank = await readBank();
+    bank.deposits = [...bank.deposits, deposit];
+    await writeBank(bank);
 
     const response: DepositPostResponse = {
       success: true,
