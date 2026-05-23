@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { computeBalance, errorMessage, toApiResponse } from "@/lib/bank-api";
-import { withBank } from "@/lib/bank-store";
+import { withBankRedis as withBank } from "@/lib/bank-redis";
 
 /** POST /api/cash-out — zero balance with a cash-out ledger row */
 export async function POST() {

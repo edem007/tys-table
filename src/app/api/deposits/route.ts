@@ -4,7 +4,7 @@ import {
   errorMessage,
   toApiResponse,
 } from "@/lib/bank-api";
-import { withBank } from "@/lib/bank-store";
+import { withBankRedis as withBank } from "@/lib/bank-redis";
 
 /** POST /api/deposits — append a cook-night deposit */
 export async function POST(request: Request) {

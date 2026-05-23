@@ -5,7 +5,7 @@ import {
   MIN_TARGET_AMOUNT,
   toApiResponse,
 } from "@/lib/bank-api";
-import { withBank } from "@/lib/bank-store";
+import { withBankRedis as withBank } from "@/lib/bank-redis";
 
 /** PATCH /api/fund — update fund name and/or target amount */
 export async function PATCH(request: Request) {
