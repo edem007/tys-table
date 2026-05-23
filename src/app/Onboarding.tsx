@@ -91,12 +91,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0F1310]/40 px-4 py-8 backdrop-blur-sm">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboarding-title"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0F1310]/40 px-4 py-8 backdrop-blur-sm"
+    >
       <div className="w-full max-w-md rounded-xl bg-[#F2EAD8] p-6 shadow-xl min-[600px]:p-8 [animation:celebration-fade-in_0.5s_ease-out_forwards]">
         <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#C28840]">
           Welcome to
         </p>
-        <h1 className="mt-1 font-serif text-3xl font-medium italic text-[#0F1310]">
+        <h1
+          id="onboarding-title"
+          className="mt-1 font-serif text-3xl font-medium italic text-[#0F1310]"
+        >
           Ty&apos;s Table
         </h1>
         <p className="mt-2 font-sans text-sm text-[#0F1310]/70">

@@ -631,7 +631,14 @@ export default function Home() {
             aria-live="polite"
           >
             <span className="text-[64px] font-normal tracking-[-0.03em] text-[#7A2A1E] min-[600px]:text-[96px]">
-              {isLoading ? "Loading..." : formatUsd(balance)}
+              {isLoading ? (
+                <span
+                  className="inline-block h-[0.72em] w-[2.2em] animate-pulse rounded-lg bg-[#E8DFCC] align-middle"
+                  aria-hidden="true"
+                />
+              ) : (
+                formatUsd(balance)
+              )}
             </span>
             <span
               className="translate-y-[-0.06em] px-0.5 font-normal text-[15px] text-[#0F1310]/30 min-[600px]:translate-y-[-0.08em] min-[600px]:text-[22px]"
