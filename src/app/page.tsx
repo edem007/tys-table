@@ -6,6 +6,9 @@ const DEFAULT_FUND_NAME = "Stone Water Fund";
 const DEFAULT_TARGET_AMOUNT = 120;
 const MIN_TARGET_AMOUNT = 20;
 const MAX_TARGET_AMOUNT = 2000;
+const FOREST_GREEN = "#5C6B4F";
+const FOREST_GREEN_HOVER = "#4d5a43";
+const BRASS_GOLD = "#C28840";
 
 const EDITORIAL_FIELD_CLASS =
   "min-w-0 border-0 border-b border-[#D9CDB0] bg-transparent px-0 outline-none ring-0 transition-colors focus:border-b-[#7A2A1E] focus:ring-0";
@@ -27,8 +30,10 @@ type Deposit = {
 type BankGetResponse = {
   deposits: Deposit[];
   balance: number;
-  fundName: string;
-  targetAmount: number;
+  fundName?: string;
+  targetAmount?: number;
+  target_name?: string;
+  target_amount?: number;
 };
 
 type ApiErrorResponse = {
@@ -72,6 +77,8 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmittingDeposit, setIsSubmittingDeposit] = useState(false);
   const [isMutatingBank, setIsMutatingBank] = useState(false);
+  const [savingFundName, setSavingFundName] = useState(false);
+  const [savingTargetAmount, setSavingTargetAmount] = useState(false);
   const [editingFundName, setEditingFundName] = useState(false);
   const [fundNameDraft, setFundNameDraft] = useState("");
   const [editingTargetAmount, setEditingTargetAmount] = useState(false);
@@ -86,8 +93,10 @@ export default function Home() {
   function applyBankResponse(data: BankGetResponse) {
     setDeposits(data.deposits);
     setBalance(data.balance);
-    setFundName(data.fundName);
-    setTargetAmount(data.targetAmount);
+    setFundName(data.fundName ?? data.target_name ?? DEFAULT_FUND_NAME);
+    setTargetAmount(
+      data.targetAmount ?? data.target_amount ?? DEFAULT_TARGET_AMOUNT,
+    );
     setErrorMessage(null);
   }
 
@@ -159,9 +168,14 @@ export default function Home() {
   async function commitFundName() {
     const trimmed = fundNameDraft.trim().slice(0, 40);
     setEditingFundName(false);
-    if (!trimmed || trimmed === fundName) return;
 
-    setIsMutatingBank(true);
+    if (!trimmed) {
+      setErrorMessage("Fund name must be 1–40 characters.");
+      return;
+    }
+    if (trimmed === fundName) return;
+
+    setSavingFundName(true);
     setErrorMessage(null);
     try {
       await patchFund({ fundName: trimmed });
@@ -171,7 +185,7 @@ export default function Home() {
         err instanceof Error ? err.message : "Failed to update fund name",
       );
     } finally {
-      setIsMutatingBank(false);
+      setSavingFundName(false);
     }
   }
 
@@ -179,16 +193,16 @@ export default function Home() {
     const digits = targetAmountDraft.replace(/\D/g, "");
     const n = parseInt(digits, 10);
     setEditingTargetAmount(false);
-    if (
-      !Number.isFinite(n) ||
-      n < MIN_TARGET_AMOUNT ||
-      n > MAX_TARGET_AMOUNT ||
-      n === targetAmount
-    ) {
+
+    if (!Number.isFinite(n) || n < MIN_TARGET_AMOUNT || n > MAX_TARGET_AMOUNT) {
+      setErrorMessage(
+        `Target amount must be between ${formatUsd(MIN_TARGET_AMOUNT)} and ${formatUsd(MAX_TARGET_AMOUNT)}.`,
+      );
       return;
     }
+    if (n === targetAmount) return;
 
-    setIsMutatingBank(true);
+    setSavingTargetAmount(true);
     setErrorMessage(null);
     try {
       await patchFund({ targetAmount: n });
@@ -198,11 +212,12 @@ export default function Home() {
         err instanceof Error ? err.message : "Failed to update target amount",
       );
     } finally {
-      setIsMutatingBank(false);
+      setSavingTargetAmount(false);
     }
   }
 
   function beginEditFundName() {
+    if (isLoading || savingFundName || savingTargetAmount) return;
     if (editingTargetAmount) void commitTargetAmount();
     setFundNameDraft(fundName);
     setEditingFundName(true);
@@ -210,10 +225,21 @@ export default function Home() {
   }
 
   function beginEditTargetAmount() {
+    if (isLoading || savingFundName || savingTargetAmount) return;
     if (editingFundName) void commitFundName();
     setTargetAmountDraft(String(targetAmount));
     setEditingTargetAmount(true);
     setEditingFundName(false);
+  }
+
+  function cancelEditFundName() {
+    setFundNameDraft(fundName);
+    setEditingFundName(false);
+  }
+
+  function cancelEditTargetAmount() {
+    setTargetAmountDraft(String(targetAmount));
+    setEditingTargetAmount(false);
   }
 
   async function applyFundPreset(label: string, amount: number) {
@@ -237,19 +263,18 @@ export default function Home() {
     }
   }
 
-  const cookNightDeposits = deposits
+  const ledgerDeposits = deposits
     .map((d, index) => ({ d, index }))
-    .filter(({ d }) => d.amount > 0)
     .sort((a, b) => {
       if (a.d.date !== b.d.date) return a.d.date < b.d.date ? 1 : -1;
       return b.index - a.index;
     })
     .map(({ d }) => d);
 
-  const visibleCookNights = depositListExpanded
-    ? cookNightDeposits
-    : cookNightDeposits.slice(0, 7);
-  const hasMoreCookNights = cookNightDeposits.length > 7;
+  const visibleLedger = depositListExpanded
+    ? ledgerDeposits
+    : ledgerDeposits.slice(0, 7);
+  const hasMoreLedger = ledgerDeposits.length > 7;
 
   useEffect(() => {
     if (!cookModalOpen) return;
@@ -319,7 +344,7 @@ export default function Home() {
   }
 
   async function cashOut() {
-    if (isMutatingBank || balance <= 0) return;
+    if (isMutatingBank || !targetMet) return;
 
     setIsMutatingBank(true);
     setErrorMessage(null);
@@ -346,11 +371,7 @@ export default function Home() {
   return (
     <div className="min-h-full min-h-[100dvh] bg-[#F2EAD8] text-[#0F1310]">
       <main
-        className={`mx-auto w-full max-w-lg px-4 pt-8 pb-8 min-[600px]:px-8 min-[600px]:pt-14 min-[600px]:pb-12 ${
-          !targetMet
-            ? "max-[599px]:pb-[calc(5.75rem+env(safe-area-inset-bottom))]"
-            : ""
-        }`}
+        className={`mx-auto w-full max-w-lg px-4 pt-8 pb-8 min-[600px]:px-8 min-[600px]:pt-14 min-[600px]:pb-12 max-[599px]:pb-[calc(5.75rem+env(safe-area-inset-bottom))]`}
       >
         <header className="mb-12 text-center min-[600px]:mb-16">
           <p className="font-serif text-[2rem] font-medium italic leading-tight tracking-tight text-[#0F1310] min-[600px]:text-5xl min-[600px]:leading-none">
@@ -384,7 +405,14 @@ export default function Home() {
             >
               /
             </span>
-            {editingTargetAmount ? (
+            {savingTargetAmount ? (
+              <span
+                className="text-[22px] font-normal italic leading-none text-[#C28840]/55 min-[600px]:text-[32px]"
+                aria-live="polite"
+              >
+                Saving...
+              </span>
+            ) : editingTargetAmount ? (
               <input
                 ref={targetAmountInputRef}
                 type="text"
@@ -406,7 +434,7 @@ export default function Home() {
                   }
                   if (e.key === "Escape") {
                     e.preventDefault();
-                    setEditingTargetAmount(false);
+                    cancelEditTargetAmount();
                   }
                 }}
                 className={`inline-block w-[5.5ch] max-w-full text-center font-serif text-[22px] font-normal italic tabular-nums text-[#C28840] min-[600px]:w-[6.5ch] min-[600px]:text-[32px] ${EDITORIAL_FIELD_CLASS}`}
@@ -415,7 +443,8 @@ export default function Home() {
               <button
                 type="button"
                 onClick={beginEditTargetAmount}
-                className="cursor-pointer border-0 bg-transparent p-0 text-[22px] font-normal italic leading-none text-[#C28840] underline decoration-transparent decoration-1 underline-offset-[0.12em] transition-colors hover:decoration-[#C28840]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] min-[600px]:text-[32px]"
+                disabled={isLoading}
+                className="cursor-pointer border-0 bg-transparent p-0 text-[22px] font-normal italic leading-none text-[#C28840] underline decoration-transparent decoration-1 underline-offset-[0.12em] transition-colors hover:decoration-[#C28840]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:cursor-default disabled:opacity-60 min-[600px]:text-[32px]"
                 aria-label="Edit savings target amount"
               >
                 {formatUsd(targetAmount)}
@@ -423,7 +452,14 @@ export default function Home() {
             )}
           </p>
           <div className="mt-6 flex w-full max-w-none justify-center px-0 min-[600px]:mt-8 min-[600px]:max-w-md min-[600px]:px-2">
-            {editingFundName ? (
+            {savingFundName ? (
+              <p
+                className="font-sans text-base font-medium text-[#1F4D3A]/55 min-[600px]:text-lg"
+                aria-live="polite"
+              >
+                Saving...
+              </p>
+            ) : editingFundName ? (
               <input
                 ref={fundNameInputRef}
                 type="text"
@@ -444,7 +480,7 @@ export default function Home() {
                   }
                   if (e.key === "Escape") {
                     e.preventDefault();
-                    setEditingFundName(false);
+                    cancelEditFundName();
                   }
                 }}
                 className={`w-full text-center font-sans text-base font-medium text-[#1F4D3A] min-[600px]:text-lg ${EDITORIAL_FIELD_CLASS}`}
@@ -453,7 +489,8 @@ export default function Home() {
               <button
                 type="button"
                 onClick={beginEditFundName}
-                className="cursor-pointer border-0 bg-transparent p-0 text-center font-sans text-base font-medium text-[#1F4D3A] underline decoration-transparent decoration-1 underline-offset-[0.15em] transition-colors hover:decoration-[#1F4D3A]/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] min-[600px]:text-lg"
+                disabled={isLoading}
+                className="cursor-pointer border-0 bg-transparent p-0 text-center font-sans text-base font-medium text-[#1F4D3A] underline decoration-transparent decoration-1 underline-offset-[0.15em] transition-colors hover:decoration-[#1F4D3A]/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:cursor-default disabled:opacity-60 min-[600px]:text-lg"
                 aria-label="Edit fund name"
               >
                 {fundName}
@@ -469,8 +506,10 @@ export default function Home() {
                 onClick={() => {
                   void applyFundPreset(preset.label, preset.amount);
                 }}
-                disabled={isMutatingBank}
-                className="rounded-full border border-[#D9CDB0] bg-transparent px-[14px] py-[6px] font-sans text-[12px] font-medium leading-tight text-[#0F1310] transition-colors hover:border-[#0F1310] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+                disabled={
+                  isMutatingBank || savingFundName || savingTargetAmount
+                }
+                className="rounded-full border border-[#D9CDB0] bg-transparent px-[14px] py-[6px] font-sans text-[12px] font-medium leading-tight text-[#0F1310] transition-colors hover:border-[#0F1310] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:opacity-50"
               >
                 {preset.label}
               </button>
@@ -483,48 +522,70 @@ export default function Home() {
             aria-valuemin={0}
             aria-valuemax={targetAmount}
             aria-valuenow={balance}
-            aria-label="Progress toward savings target"
+            aria-label={
+              targetMet ? "Savings target reached" : "Progress toward savings target"
+            }
           >
-            {targetMet ? (
-              <div
-                className="h-[2px] w-full shrink-0 bg-[#C28840]"
-                aria-hidden="true"
-              />
-            ) : null}
             <div className="relative h-2 w-full bg-[#E8DFCC]">
               <div
-                className="absolute left-0 top-0 h-full bg-[#7A2A1E] transition-[width] duration-300 ease-out"
-                style={{ width: `${progressPercent}%` }}
+                className={`absolute left-0 top-0 h-full transition-[width] duration-500 ease-out ${
+                  targetMet ? "w-full" : ""
+                }`}
+                style={
+                  targetMet
+                    ? { backgroundColor: BRASS_GOLD }
+                    : {
+                        width: `${progressPercent}%`,
+                        backgroundColor: "#7A2A1E",
+                      }
+                }
               />
             </div>
           </div>
+
+          {targetMet ? (
+            <p
+              className="mt-8 max-w-md px-2 font-serif text-xl font-normal italic leading-snug min-[600px]:mt-10 min-[600px]:px-0 min-[600px]:text-[28px] [animation:celebration-fade-in_0.75s_ease-out_forwards]"
+              style={{ color: FOREST_GREEN }}
+            >
+              You earned it! Time to enjoy your {fundName}.
+            </p>
+          ) : null}
         </section>
 
         <section className="mt-8 w-full text-left min-[600px]:mt-10">
-          {cookNightDeposits.length === 0 ? (
+          {ledgerDeposits.length === 0 ? (
             <p className="text-center font-sans text-sm text-[#0F1310]/55">
               No cook nights yet. Tonight&apos;s the night.
             </p>
           ) : (
             <>
               <ul className="w-full divide-y divide-dashed divide-[#D9CDB0]">
-                {visibleCookNights.map((d) => (
+                {visibleLedger.map((d) => (
                   <li key={d.id} className="flex items-start justify-between gap-4 py-4">
                     <div className="min-w-0 flex-1">
                       <p className="font-sans text-sm text-[#0F1310]/55">
                         {formatMonthDay(d.date)}
                       </p>
-                      <p className="mt-1 font-serif text-base font-normal italic leading-snug text-[#0F1310]">
+                      <p
+                        className={`mt-1 font-serif text-base font-normal italic leading-snug ${
+                          d.amount < 0 ? "text-[#0F1310]/70" : "text-[#0F1310]"
+                        }`}
+                      >
                         {d.dish}
                       </p>
                     </div>
-                    <p className="shrink-0 pt-0.5 font-mono text-sm tabular-nums text-[#1F4D3A]">
-                      {formatPlusUsd(d.amount)}
+                    <p
+                      className={`shrink-0 pt-0.5 font-mono text-sm tabular-nums ${
+                        d.amount < 0 ? "text-[#0F1310]/55" : "text-[#1F4D3A]"
+                      }`}
+                    >
+                      {d.amount < 0 ? formatUsd(d.amount) : formatPlusUsd(d.amount)}
                     </p>
                   </li>
                 ))}
               </ul>
-              {hasMoreCookNights ? (
+              {hasMoreLedger ? (
                 <div className="mt-3 text-center">
                   <button
                     type="button"
@@ -541,31 +602,29 @@ export default function Home() {
           )}
         </section>
 
-        {targetMet ? (
-          <div className="mt-10 min-[600px]:mt-14">
-            <div className="flex flex-col items-center gap-6 text-center [animation:celebration-fade-in_0.75s_ease-out_forwards] min-[600px]:gap-8">
-              <p className="max-w-md px-1 font-serif text-xl font-normal italic leading-snug text-[#0F1310] min-[600px]:px-0 min-[600px]:text-[32px]">
-                You earned this. {fundName} is paid for.
-              </p>
+        <div
+          className={`max-[599px]:fixed max-[599px]:inset-x-0 max-[599px]:bottom-0 max-[599px]:z-40 max-[599px]:flex max-[599px]:justify-center border-t border-[#D9CDB0]/60 bg-[#F2EAD8]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm min-[600px]:relative min-[600px]:mt-14 min-[600px]:border-0 min-[600px]:bg-transparent min-[600px]:p-0 min-[600px]:backdrop-blur-none ${
+            !targetMet && cookModalOpen ? "max-[599px]:hidden" : ""
+          }`}
+        >
+          <div className="w-full max-w-lg">
+            {targetMet ? (
               <button
                 type="button"
                 onClick={() => {
                   void cashOut();
                 }}
-                disabled={isMutatingBank}
-                className="rounded-[2px] bg-[#0F1310] px-6 py-2.5 font-sans text-xs font-medium text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  isMutatingBank ||
+                  savingFundName ||
+                  savingTargetAmount ||
+                  isLoading
+                }
+                className="w-full rounded-[2px] bg-[#5C6B4F] px-8 py-4 text-center font-sans text-sm font-medium uppercase tracking-[0.04em] text-[#F2EAD8] transition-colors duration-200 hover:bg-[#4d5a43] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5C6B4F] disabled:cursor-not-allowed disabled:opacity-50 min-[600px]:mx-auto min-[600px]:block min-[600px]:max-w-xs"
               >
-                {isMutatingBank ? "Saving..." : "Start a new fund"}
+                {isMutatingBank ? "Cashing out..." : "Cash Out"}
               </button>
-            </div>
-          </div>
-        ) : (
-          <div
-            className={`max-[599px]:fixed max-[599px]:inset-x-0 max-[599px]:bottom-0 max-[599px]:z-40 max-[599px]:flex max-[599px]:justify-center border-t border-[#D9CDB0]/60 bg-[#F2EAD8]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm min-[600px]:relative min-[600px]:mt-14 min-[600px]:border-0 min-[600px]:bg-transparent min-[600px]:p-0 min-[600px]:backdrop-blur-none ${
-              cookModalOpen ? "max-[599px]:hidden" : ""
-            }`}
-          >
-            <div className="w-full max-w-lg">
+            ) : (
               <button
                 type="button"
                 onClick={openCookModal}
@@ -573,9 +632,9 @@ export default function Home() {
               >
                 I Cooked Tonight
               </button>
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </main>
 
       {cookModalOpen ? (
