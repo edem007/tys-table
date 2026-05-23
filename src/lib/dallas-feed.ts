@@ -1,4 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  buildTasteProfile,
+  cuisineList,
+  DEFAULT_PREFERENCES,
+  type Preferences,
+} from "./preferences";
 
 export type FeedCategory = "restaurant" | "event" | "nightlife";
 
@@ -93,7 +99,10 @@ function parseFeedJson(text: string): FeedItem[] {
  * Use Claude + web search to build a curated "This Week in Dallas" feed
  * tailored to Ty's tastes. Throws on failure.
  */
-export async function generateDallasFeed(weekOf: string): Promise<FeedItem[]> {
+export async function generateDallasFeed(
+  weekOf: string,
+  prefs: Preferences = DEFAULT_PREFERENCES,
+): Promise<FeedItem[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY is not configured");
@@ -101,12 +110,12 @@ export async function generateDallasFeed(weekOf: string): Promise<FeedItem[]> {
 
   const anthropic = new Anthropic({ apiKey });
 
-  const system = `You are Ty's lifestyle strategist in Dallas, Texas. Use web search to find what is genuinely happening and well-reviewed in Dallas around the week of ${weekOf}.
+  const system = `You are ${prefs.name}'s lifestyle strategist in Dallas, Texas. Use web search to find what is genuinely happening and well-reviewed in Dallas around the week of ${weekOf}.
 
-Ty's tastes: soul food, Italian, and African cuisines; lounge culture, intimate vibes, unique dining and nightlife — not chains or generic picks. Monthly dining budget ~$400.
+${buildTasteProfile(prefs)}
 
 Curate 6 items mixing these categories:
-- "restaurant": real Dallas restaurants rated 4.0 stars or higher (Google/Yelp). Prefer soul food, Italian, African, or distinctive spots.
+- "restaurant": real Dallas restaurants rated 4.0 stars or higher (Google/Yelp). Prefer ${cuisineList(prefs.cuisines)}, or distinctive spots.
 - "event": concerts, food festivals, pop-ups, or unique experiences happening soon.
 - "nightlife": lounges, bars, or nightlife with great atmosphere.
 
@@ -120,7 +129,7 @@ After searching, respond with ONLY a JSON array (no markdown, no code fences) of
   "neighborhood": "string — e.g. Bishop Arts, Deep Ellum, Oak Cliff",
   "date": "YYYY-MM-DD (events only, if known)",
   "description": "string — 1-2 elegant sentences",
-  "whyTy": "string — one sentence on why Ty would love it"
+  "whyTy": "string — one sentence on why ${prefs.name} would love it"
 }]`;
 
   // The server-side web_search tool isn't in this SDK version's typings,

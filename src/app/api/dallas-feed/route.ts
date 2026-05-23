@@ -6,6 +6,7 @@ import {
   writeDallasFeed,
   type DallasFeedEntry,
 } from "@/lib/dallas-feed-redis";
+import { readPreferences } from "@/lib/preferences-redis";
 
 export const dynamic = "force-dynamic";
 // Web search can take a while; allow up to 60s.
@@ -34,7 +35,8 @@ export async function GET(request: Request) {
       }
     }
 
-    const items = await generateDallasFeed(today);
+    const prefs = await readPreferences();
+    const items = await generateDallasFeed(today, prefs);
     const entry: DallasFeedEntry = {
       date: today,
       items,

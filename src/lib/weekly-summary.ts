@@ -1,5 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { FeedItem } from "./dallas-feed";
+import {
+  buildTasteProfile,
+  DEFAULT_PREFERENCES,
+  type Preferences,
+} from "./preferences";
 
 export type WeeklyRestaurantPick = {
   name: string;
@@ -38,6 +43,7 @@ export type WeeklySummaryInput = {
   targetAmount: number;
   fundName: string;
   feed: FeedItem[];
+  prefs: Preferences;
 };
 
 const MODEL = "claude-sonnet-4-6";
@@ -181,9 +187,11 @@ export async function generateWeeklySummary(
 
   const anthropic = new Anthropic({ apiKey });
 
-  const system = `You are Ty's lifestyle strategist in Dallas. Write her Sunday weekly brief.
+  const { prefs } = input;
 
-Ty's tastes: soul food, Italian, African cuisines; lounge culture, intimate vibes, unique experiences. Monthly dining budget ~$400, planning 4 cook nights and 3 dine-out nights per week.
+  const system = `You are ${prefs.name}'s lifestyle strategist in Dallas. Write the Sunday weekly brief.
+
+${buildTasteProfile(prefs)}
 
 Savings fund "${input.fundName}": $${input.balance} of $${input.targetAmount} (${progressPct}%). Each logged cook night adds $16 to the fund.
 
@@ -193,11 +201,11 @@ ${feedLines || "(none available — use your Dallas knowledge)"}
 Respond with ONLY a JSON object (no markdown, no code fences):
 {
   "theme": "string — a short evocative theme for the week, e.g. 'Soul Food & Slow Nights'",
-  "budget": { "saved": ${input.balance}, "target": ${input.targetAmount}, "note": "string — one encouraging sentence on her progress" },
+  "budget": { "saved": ${input.balance}, "target": ${input.targetAmount}, "note": "string — one encouraging sentence on the progress" },
   "restaurantPicks": [ { "name": "string", "rating": number, "priceRange": "$$", "why": "string" } ],
-  "costComparison": { "diningOut": number, "cooking": number, "savings": number, "note": "string — what the savings means for her fund" },
+  "costComparison": { "diningOut": number, "cooking": number, "savings": number, "note": "string — what the savings means for the fund" },
   "entertainment": [ { "name": "string", "kind": "string", "date": "YYYY-MM-DD", "note": "string" } ],
-  "plan": [ "string — one line per day, e.g. 'Mon — Cook: jollof rice ($14)'. Mix 4 cook nights and 3 dine-out nights." ]
+  "plan": [ "string — one line per day, e.g. 'Mon — Cook: jollof rice ($14)'. Mix ${prefs.cookNights} cook nights and ${prefs.dineOutNights} dine-out nights." ]
 }
 
 Pick 2-3 restaurantPicks and 2 entertainment items from the curated options when they fit. costComparison should reflect a realistic week: total dining-out spend vs. cooking those same nights at home.`;

@@ -19,6 +19,7 @@ import {
   writeWeeklySummary,
   type WeeklySummaryEntry,
 } from "@/lib/weekly-summary-redis";
+import { readPreferences } from "@/lib/preferences-redis";
 
 // Always run fresh; never cache the cron response.
 export const dynamic = "force-dynamic";
@@ -54,13 +55,17 @@ export async function GET(request: Request) {
     }
 
     const today = dallasToday();
-    const state = await readBankFromRedis();
+    const [state, prefs] = await Promise.all([
+      readBankFromRedis(),
+      readPreferences(),
+    ]);
     const balance = computeBalance(state.deposits);
 
     const suggestion = await generateSuggestion({
       balance,
       targetAmount: state.targetAmount,
       fundName: state.fundName,
+      prefs,
     });
 
     const entry: DailySuggestion = {
@@ -75,7 +80,7 @@ export async function GET(request: Request) {
     // Don't fail the whole cron if the feed (web search) hiccups.
     let feedCount = 0;
     try {
-      const items = await generateDallasFeed(today);
+      const items = await generateDallasFeed(today, prefs);
       const feed: DallasFeedEntry = {
         date: today,
         items,
@@ -97,6 +102,7 @@ export async function GET(request: Request) {
           targetAmount: state.targetAmount,
           fundName: state.fundName,
           feed: feedEntry?.items ?? [],
+          prefs,
         });
         const weekly: WeeklySummaryEntry = {
           weekOf: today,

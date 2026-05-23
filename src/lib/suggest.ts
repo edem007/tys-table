@@ -1,4 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  buildTasteProfile,
+  DEFAULT_PREFERENCES,
+  type Preferences,
+} from "./preferences";
 
 export type HomeAlternative = {
   /** A cook-at-home dish approximating the dine-out experience. */
@@ -21,15 +26,13 @@ export type SuggestInput = {
   balance: number;
   targetAmount: number;
   fundName: string;
+  prefs: Preferences;
 };
 
 const MODEL = "claude-sonnet-4-6";
 
-export function buildSystemPrompt(
-  balance: number,
-  targetAmount: number,
-  fundName: string,
-): string {
+export function buildSystemPrompt(input: SuggestInput): string {
+  const { balance, targetAmount, fundName, prefs } = input;
   const progressPct =
     targetAmount > 0 ? Math.round((balance / targetAmount) * 100) : 0;
   const lowBalance = progressPct < 30;
@@ -45,9 +48,9 @@ export function buildSystemPrompt(
       "Balance is over 80% of the savings target — dining out at a lounge or unique Dallas spot is allowed if it fits the fund goal.";
   }
 
-  return `You are Ty's personal food strategist in Dallas, Texas. She is saving toward "${fundName}".
+  return `You are ${prefs.name}'s personal food strategist in Dallas, Texas. ${prefs.name} is saving toward "${fundName}".
 
-Ty's tastes: soul food, Italian, and African cuisines. She loves lounge culture, intimate vibes, and unique dining experiences — not chains or generic picks.
+${buildTasteProfile(prefs)}
 
 Current savings: $${balance} of $${targetAmount} target (${progressPct}% toward goal).
 ${budgetGuidance}
@@ -58,7 +61,7 @@ Respond with ONLY a single JSON object (no markdown, no code fences) matching th
   "title": "string — dish name if cook, or venue/experience if dine_out",
   "description": "string — 1-2 elegant sentences",
   "estimatedCost": number — USD grocery estimate if cook, or estimated spend if dine_out,
-  "reason": "string — one short sentence tying the pick to her fund and tonight",
+  "reason": "string — one short sentence tying the pick to the fund and tonight",
   "homeAlternative": { "title": "string", "estimatedCost": number }
 }
 
@@ -121,11 +124,14 @@ export function parseSuggestionJson(text: string): SuggestionResponse {
 }
 
 /** Normalize loose request input into safe suggestion parameters. */
-export function normalizeSuggestInput(body: {
-  balance?: unknown;
-  targetAmount?: unknown;
-  fundName?: unknown;
-}): SuggestInput {
+export function normalizeSuggestInput(
+  body: {
+    balance?: unknown;
+    targetAmount?: unknown;
+    fundName?: unknown;
+  },
+  prefs: Preferences = DEFAULT_PREFERENCES,
+): SuggestInput {
   const balance =
     typeof body.balance === "number" && Number.isFinite(body.balance)
       ? body.balance
@@ -141,7 +147,7 @@ export function normalizeSuggestInput(body: {
       ? body.fundName.trim().slice(0, 40)
       : "Stone Water Fund";
 
-  return { balance, targetAmount, fundName };
+  return { balance, targetAmount, fundName, prefs };
 }
 
 /** Call Claude and return a validated suggestion. Throws on failure. */
@@ -154,11 +160,7 @@ export async function generateSuggestion(
   }
 
   const anthropic = new Anthropic({ apiKey });
-  const system = buildSystemPrompt(
-    input.balance,
-    input.targetAmount,
-    input.fundName,
-  );
+  const system = buildSystemPrompt(input);
 
   const message = await anthropic.messages.create({
     model: MODEL,
@@ -167,7 +169,7 @@ export async function generateSuggestion(
     messages: [
       {
         role: "user",
-        content: "What should Ty do tonight? Return JSON only.",
+        content: `What should ${input.prefs.name} do tonight? Return JSON only.`,
       },
     ],
   });

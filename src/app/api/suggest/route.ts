@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateSuggestion, normalizeSuggestInput } from "@/lib/suggest";
+import { readPreferences } from "@/lib/preferences-redis";
 
 export type { SuggestionResponse } from "@/lib/suggest";
 
@@ -18,7 +19,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const input = normalizeSuggestInput(body);
+    const prefs = await readPreferences();
+    const input = normalizeSuggestInput(body, prefs);
     const suggestion = await generateSuggestion(input);
     return NextResponse.json(suggestion);
   } catch (err) {

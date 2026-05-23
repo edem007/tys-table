@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { computeBalance } from "@/lib/bank-api";
 import { readBankFromRedis } from "@/lib/bank-redis";
 import { readDallasFeed } from "@/lib/dallas-feed-redis";
+import { readPreferences } from "@/lib/preferences-redis";
 import { generateWeeklySummary } from "@/lib/weekly-summary";
 import {
   dallasWeekStart,
@@ -35,9 +36,10 @@ export async function GET(request: Request) {
       }
     }
 
-    const [state, feed] = await Promise.all([
+    const [state, feed, prefs] = await Promise.all([
       readBankFromRedis(),
       readDallasFeed(),
+      readPreferences(),
     ]);
 
     const summary = await generateWeeklySummary({
@@ -45,6 +47,7 @@ export async function GET(request: Request) {
       targetAmount: state.targetAmount,
       fundName: state.fundName,
       feed: feed?.items ?? [],
+      prefs,
     });
 
     const entry: WeeklySummaryEntry = {

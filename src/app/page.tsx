@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@/lib/dallas-feed";
 import type { WeeklySummary } from "@/lib/weekly-summary";
+import Onboarding from "./Onboarding";
 
 const DEFAULT_FUND_NAME = "Stone Water Fund";
 const DEFAULT_TARGET_AMOUNT = 120;
@@ -111,6 +112,7 @@ export default function Home() {
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const dishFieldRef = useRef<HTMLInputElement>(null);
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
@@ -212,9 +214,22 @@ export default function Home() {
       }
     }
 
+    async function loadPrefs() {
+      try {
+        const res = await fetch("/api/preferences");
+        if (!res.ok) return;
+        const data = (await res.json()) as { onboarded?: boolean };
+        if (cancelled) return;
+        if (!data.onboarded) setShowOnboarding(true);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
     load();
     loadDaily();
     loadFeed();
+    loadPrefs();
     return () => {
       cancelled = true;
     };
@@ -522,7 +537,16 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-full min-h-[100dvh] bg-[#F2EAD8] text-[#0F1310]">
+    <>
+      {showOnboarding ? (
+        <Onboarding
+          onComplete={() => {
+            setShowOnboarding(false);
+            void fetchBank();
+          }}
+        />
+      ) : null}
+      <div className="min-h-full min-h-[100dvh] bg-[#F2EAD8] text-[#0F1310]">
       <main
         className={`mx-auto w-full max-w-lg px-4 pt-8 pb-8 min-[600px]:px-8 min-[600px]:pt-14 min-[600px]:pb-12 ${
           targetMet
@@ -1328,6 +1352,7 @@ export default function Home() {
           </div>
         </div>
       ) : null}
-    </div>
+      </div>
+    </>
   );
 }
