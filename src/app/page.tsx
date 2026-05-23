@@ -40,6 +40,14 @@ type ApiErrorResponse = {
   error: string;
 };
 
+type Suggestion = {
+  type: "cook" | "dine_out";
+  title: string;
+  description: string;
+  estimatedCost: number;
+  reason: string;
+};
+
 function formatUsd(amount: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -86,6 +94,8 @@ export default function Home() {
   const [cookModalOpen, setCookModalOpen] = useState(false);
   const [dishInput, setDishInput] = useState("");
   const [depositListExpanded, setDepositListExpanded] = useState(false);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
   const dishFieldRef = useRef<HTMLInputElement>(null);
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
@@ -343,6 +353,36 @@ export default function Home() {
     }
   }
 
+  async function fetchSuggestion() {
+    if (isLoadingSuggestion || isLoading || targetMet) return;
+
+    setIsLoadingSuggestion(true);
+    setErrorMessage(null);
+    setSuggestion(null);
+    try {
+      const res = await fetch("/api/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ balance, targetAmount, fundName }),
+      });
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+        throw new Error(
+          errBody.error ?? `Failed to get suggestion (${res.status})`,
+        );
+      }
+      const data = (await res.json()) as Suggestion;
+      setSuggestion(data);
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to get suggestion",
+      );
+    } finally {
+      setIsLoadingSuggestion(false);
+    }
+  }
+
   async function cashOut() {
     if (isMutatingBank || !targetMet) return;
 
@@ -371,7 +411,11 @@ export default function Home() {
   return (
     <div className="min-h-full min-h-[100dvh] bg-[#F2EAD8] text-[#0F1310]">
       <main
-        className={`mx-auto w-full max-w-lg px-4 pt-8 pb-8 min-[600px]:px-8 min-[600px]:pt-14 min-[600px]:pb-12 max-[599px]:pb-[calc(5.75rem+env(safe-area-inset-bottom))]`}
+        className={`mx-auto w-full max-w-lg px-4 pt-8 pb-8 min-[600px]:px-8 min-[600px]:pt-14 min-[600px]:pb-12 ${
+          targetMet
+            ? "max-[599px]:pb-[calc(5.75rem+env(safe-area-inset-bottom))]"
+            : "max-[599px]:pb-[calc(10.5rem+env(safe-area-inset-bottom))]"
+        }`}
       >
         <header className="mb-12 text-center min-[600px]:mb-16">
           <p className="font-serif text-[2rem] font-medium italic leading-tight tracking-tight text-[#0F1310] min-[600px]:text-5xl min-[600px]:leading-none">
@@ -553,6 +597,44 @@ export default function Home() {
           ) : null}
         </section>
 
+        {suggestion ? (
+          <section
+            className="mt-8 w-full border border-[#D9CDB0] bg-[#F2EAD8] px-5 py-6 min-[600px]:mt-10 min-[600px]:px-6 [animation:celebration-fade-in_0.75s_ease-out_forwards]"
+            aria-live="polite"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl leading-none" aria-hidden="true">
+                {suggestion.type === "cook" ? "🍳" : "🍽️"}
+              </span>
+              <div className="min-w-0 flex-1 text-left">
+                <p className="font-serif text-lg font-normal italic leading-snug text-[#0F1310] min-[600px]:text-xl">
+                  {suggestion.title}
+                </p>
+                <p className="mt-2 font-sans text-sm leading-relaxed text-[#0F1310]/80">
+                  {suggestion.description}
+                </p>
+                <p className="mt-3 font-mono text-xs uppercase tracking-[0.12em] text-[#1F4D3A]">
+                  {suggestion.type === "cook"
+                    ? `Est. groceries ${formatUsd(suggestion.estimatedCost)}`
+                    : `Est. ${formatUsd(suggestion.estimatedCost)}`}
+                </p>
+                <p className="mt-3 font-serif text-sm font-normal italic text-[#0F1310]/55">
+                  {suggestion.reason}
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 text-center">
+              <button
+                type="button"
+                onClick={() => setSuggestion(null)}
+                className="font-sans text-sm font-medium text-[#0F1310]/60 underline decoration-[#D9CDB0] underline-offset-4 transition-colors hover:text-[#0F1310]"
+              >
+                Dismiss
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <section className="mt-8 w-full text-left min-[600px]:mt-10">
           {ledgerDeposits.length === 0 ? (
             <p className="text-center font-sans text-sm text-[#0F1310]/55">
@@ -625,13 +707,34 @@ export default function Home() {
                 {isMutatingBank ? "Cashing out..." : "Cash Out"}
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={openCookModal}
-                className="w-full rounded-[2px] bg-[#0F1310] px-8 py-4 text-center font-sans text-sm font-medium uppercase tracking-[0.04em] text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
-              >
-                I Cooked Tonight
-              </button>
+              <div className="flex w-full flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void fetchSuggestion();
+                  }}
+                  disabled={
+                    isLoadingSuggestion ||
+                    isLoading ||
+                    isSubmittingDeposit ||
+                    savingFundName ||
+                    savingTargetAmount
+                  }
+                  className="w-full rounded-[2px] border border-[#C28840] bg-transparent px-6 py-3.5 text-center font-sans text-sm font-medium text-[#0F1310] transition-colors duration-200 hover:border-[#7A2A1E] hover:text-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C28840] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isLoadingSuggestion
+                    ? "Thinking..."
+                    : "What Should I Do Tonight?"}
+                </button>
+                <button
+                  type="button"
+                  onClick={openCookModal}
+                  disabled={isLoadingSuggestion}
+                  className="w-full rounded-[2px] bg-[#0F1310] px-8 py-4 text-center font-sans text-sm font-medium uppercase tracking-[0.04em] text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  I Cooked Tonight
+                </button>
+              </div>
             )}
           </div>
         </div>
