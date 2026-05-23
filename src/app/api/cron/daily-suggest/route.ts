@@ -7,9 +7,16 @@ import {
   type DailySuggestion,
 } from "@/lib/daily-suggestion-redis";
 import { generateSuggestion } from "@/lib/suggest";
+import { generateDallasFeed } from "@/lib/dallas-feed";
+import {
+  writeDallasFeed,
+  type DallasFeedEntry,
+} from "@/lib/dallas-feed-redis";
 
 // Always run fresh; never cache the cron response.
 export const dynamic = "force-dynamic";
+// Two AI calls (suggestion + web-search feed) — allow extra time.
+export const maxDuration = 60;
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -39,6 +46,7 @@ export async function GET(request: Request) {
       }
     }
 
+    const today = dallasToday();
     const state = await readBankFromRedis();
     const balance = computeBalance(state.deposits);
 
@@ -49,14 +57,30 @@ export async function GET(request: Request) {
     });
 
     const entry: DailySuggestion = {
-      date: dallasToday(),
+      date: today,
       suggestion,
       generatedAt: new Date().toISOString(),
     };
 
     await writeDailySuggestion(entry);
 
-    return NextResponse.json({ ok: true, ...entry });
+    // Pre-warm the "This Week in Dallas" feed so the app loads instantly.
+    // Don't fail the whole cron if the feed (web search) hiccups.
+    let feedCount = 0;
+    try {
+      const items = await generateDallasFeed(today);
+      const feed: DallasFeedEntry = {
+        date: today,
+        items,
+        generatedAt: new Date().toISOString(),
+      };
+      await writeDallasFeed(feed);
+      feedCount = items.length;
+    } catch (feedErr) {
+      console.error("Dallas feed refresh failed:", feedErr);
+    }
+
+    return NextResponse.json({ ok: true, feedCount, ...entry });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: errorMessage(err) }, { status: 500 });

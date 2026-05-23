@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { FeedItem } from "@/lib/dallas-feed";
 
 const DEFAULT_FUND_NAME = "Stone Water Fund";
 const DEFAULT_TARGET_AMOUNT = 120;
@@ -100,6 +101,8 @@ export default function Home() {
     null,
   );
   const [dailyDismissed, setDailyDismissed] = useState(false);
+  const [dallasFeed, setDallasFeed] = useState<FeedItem[]>([]);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(true);
   const dishFieldRef = useRef<HTMLInputElement>(null);
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
@@ -186,8 +189,24 @@ export default function Home() {
       }
     }
 
+    async function loadFeed() {
+      setIsLoadingFeed(true);
+      try {
+        const res = await fetch("/api/dallas-feed");
+        if (!res.ok) return;
+        const data = (await res.json()) as { items?: FeedItem[] };
+        if (cancelled) return;
+        if (Array.isArray(data.items)) setDallasFeed(data.items);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setIsLoadingFeed(false);
+      }
+    }
+
     load();
     loadDaily();
+    loadFeed();
     return () => {
       cancelled = true;
     };
@@ -745,6 +764,75 @@ export default function Home() {
                 </div>
               ) : null}
             </>
+          )}
+        </section>
+
+        <section className="mt-16 w-full text-left">
+          <div className="mb-5 flex items-baseline justify-between gap-3 border-b border-[#D9CDB0] pb-2">
+            <h2 className="font-serif text-xl font-normal italic text-[#0F1310]">
+              This Week in Dallas
+            </h2>
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0F1310]/45">
+              Curated for Ty
+            </span>
+          </div>
+
+          {isLoadingFeed && dallasFeed.length === 0 ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-24 w-full animate-pulse rounded-lg bg-[#E8DFCC]"
+                />
+              ))}
+            </div>
+          ) : dallasFeed.length === 0 ? (
+            <p className="font-sans text-sm text-[#0F1310]/55">
+              No picks just yet — check back this evening.
+            </p>
+          ) : (
+            <ul className="space-y-4">
+              {dallasFeed.map((item, i) => (
+                <li
+                  key={`${item.name}-${i}`}
+                  className="rounded-lg border border-[#0F1310]/10 bg-[#F2EAD8] px-5 py-4"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#C28840]">
+                      {item.category === "restaurant"
+                        ? "Restaurant"
+                        : item.category === "nightlife"
+                          ? "Nightlife"
+                          : "Event"}
+                    </span>
+                    {item.rating !== undefined ? (
+                      <span className="font-mono text-[10px] tracking-[0.08em] text-[#1F4D3A]">
+                        ★ {item.rating.toFixed(1)}
+                      </span>
+                    ) : null}
+                    {item.priceRange ? (
+                      <span className="font-mono text-[10px] tracking-[0.08em] text-[#0F1310]/45">
+                        {item.priceRange}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1.5 font-serif text-lg font-normal italic leading-snug text-[#0F1310]">
+                    {item.name}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#0F1310]/50">
+                    {item.kind}
+                    {item.neighborhood ? ` · ${item.neighborhood}` : ""}
+                    {item.date ? ` · ${formatMonthDay(item.date)}` : ""}
+                  </p>
+                  <p className="mt-2.5 font-sans text-sm leading-relaxed text-[#0F1310]/75">
+                    {item.description}
+                  </p>
+                  <p className="mt-2 font-serif text-sm italic text-[#1F4D3A]">
+                    {item.whyTy}
+                  </p>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 
