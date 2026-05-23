@@ -1,153 +1,25 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { generateSuggestion, normalizeSuggestInput } from "@/lib/suggest";
 
-export type SuggestionResponse = {
-  type: "cook" | "dine_out";
-  title: string;
-  description: string;
-  estimatedCost: number;
-  reason: string;
-};
-
-type SuggestRequestBody = {
-  balance?: number;
-  targetAmount?: number;
-  fundName?: string;
-};
-
-const MODEL = "claude-sonnet-4-6";
+export type { SuggestionResponse } from "@/lib/suggest";
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return "An unexpected error occurred";
 }
 
-function buildSystemPrompt(
-  balance: number,
-  targetAmount: number,
-  fundName: string,
-): string {
-  const progressPct =
-    targetAmount > 0 ? Math.round((balance / targetAmount) * 100) : 0;
-  const lowBalance = progressPct < 30;
-  const highBalance = progressPct > 80;
-
-  let budgetGuidance =
-    "Balance is mid-range — either cooking or dining out is fine; choose what feels special for tonight.";
-  if (lowBalance) {
-    budgetGuidance =
-      "Balance is under 30% of the savings target — strongly prefer a cook-at-home suggestion with modest grocery cost.";
-  } else if (highBalance) {
-    budgetGuidance =
-      "Balance is over 80% of the savings target — dining out at a lounge or unique Dallas spot is allowed if it fits the fund goal.";
-  }
-
-  return `You are Ty's personal food strategist in Dallas, Texas. She is saving toward "${fundName}".
-
-Ty's tastes: soul food, Italian, and African cuisines. She loves lounge culture, intimate vibes, and unique dining experiences — not chains or generic picks.
-
-Current savings: $${balance} of $${targetAmount} target (${progressPct}% toward goal).
-${budgetGuidance}
-
-Respond with ONLY a single JSON object (no markdown, no code fences) matching this schema:
-{
-  "type": "cook" | "dine_out",
-  "title": "string — dish name if cook, or venue/experience if dine_out",
-  "description": "string — 1-2 elegant sentences",
-  "estimatedCost": number — USD grocery estimate if cook, or estimated spend if dine_out,
-  "reason": "string — one short sentence tying the pick to her fund and tonight"
-}`;
-}
-
-function parseSuggestionJson(text: string): SuggestionResponse {
-  const trimmed = text.trim();
-  const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
-  const raw = jsonMatch ? jsonMatch[0] : trimmed;
-  const parsed = JSON.parse(raw) as Record<string, unknown>;
-
-  const type = parsed.type;
-  if (type !== "cook" && type !== "dine_out") {
-    throw new Error("Invalid suggestion type");
-  }
-
-  const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
-  const description =
-    typeof parsed.description === "string" ? parsed.description.trim() : "";
-  const reason = typeof parsed.reason === "string" ? parsed.reason.trim() : "";
-  const estimatedCost =
-    typeof parsed.estimatedCost === "number"
-      ? parsed.estimatedCost
-      : typeof parsed.estimatedCost === "string"
-        ? parseFloat(parsed.estimatedCost)
-        : NaN;
-
-  if (!title || !description || !reason || !Number.isFinite(estimatedCost)) {
-    throw new Error("Incomplete suggestion from model");
-  }
-
-  return {
-    type,
-    title,
-    description,
-    estimatedCost: Math.max(0, Math.round(estimatedCost)),
-    reason,
-  };
-}
-
 /** POST /api/suggest — Ty's tonight recommendation via Claude */
 export async function POST(request: Request) {
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY is not configured" },
-        { status: 500 },
-      );
-    }
-
-    let body: SuggestRequestBody;
+    let body: Record<string, unknown>;
     try {
-      body = (await request.json()) as SuggestRequestBody;
+      body = (await request.json()) as Record<string, unknown>;
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const balance =
-      typeof body.balance === "number" && Number.isFinite(body.balance)
-        ? body.balance
-        : 0;
-    const targetAmount =
-      typeof body.targetAmount === "number" &&
-      Number.isFinite(body.targetAmount) &&
-      body.targetAmount > 0
-        ? body.targetAmount
-        : 120;
-    const fundName =
-      typeof body.fundName === "string" && body.fundName.trim()
-        ? body.fundName.trim().slice(0, 40)
-        : "Stone Water Fund";
-
-    const anthropic = new Anthropic({ apiKey });
-    const system = buildSystemPrompt(balance, targetAmount, fundName);
-
-    const message = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 512,
-      system,
-      messages: [
-        {
-          role: "user",
-          content: `What should Ty do tonight? Return JSON only.`,
-        },
-      ],
-    });
-
-    const textBlock = message.content.find((block) => block.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      throw new Error("No text response from model");
-    }
-
-    const suggestion = parseSuggestionJson(textBlock.text);
+    const input = normalizeSuggestInput(body);
+    const suggestion = await generateSuggestion(input);
     return NextResponse.json(suggestion);
   } catch (err) {
     console.error(err);

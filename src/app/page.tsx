@@ -96,6 +96,10 @@ export default function Home() {
   const [depositListExpanded, setDepositListExpanded] = useState(false);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
+  const [dailySuggestion, setDailySuggestion] = useState<Suggestion | null>(
+    null,
+  );
+  const [dailyDismissed, setDailyDismissed] = useState(false);
   const dishFieldRef = useRef<HTMLInputElement>(null);
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
@@ -165,7 +169,25 @@ export default function Home() {
       }
     }
 
+    async function loadDaily() {
+      try {
+        const res = await fetch("/api/daily-suggestion");
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          isToday: boolean;
+          daily: { suggestion: Suggestion } | null;
+        };
+        if (cancelled) return;
+        if (data.isToday && data.daily) {
+          setDailySuggestion(data.daily.suggestion);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
     load();
+    loadDaily();
     return () => {
       cancelled = true;
     };
@@ -425,6 +447,48 @@ export default function Home() {
             Est. 2026 · Dallas
           </p>
         </header>
+
+        {dailySuggestion && !dailyDismissed ? (
+          <section
+            aria-label="Tonight's suggestion"
+            className="mb-10 rounded-lg border border-[#C28840]/40 bg-[#C28840]/8 px-5 py-5 text-left [animation:celebration-fade-in_0.6s_ease-out_forwards]"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <p className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-[#C28840]">
+                Tonight&apos;s Pick
+              </p>
+              <button
+                type="button"
+                onClick={() => setDailyDismissed(true)}
+                aria-label="Dismiss tonight's suggestion"
+                className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/45 transition-colors hover:text-[#7A2A1E]"
+              >
+                Dismiss
+              </button>
+            </div>
+            <div className="mt-3 flex items-start gap-3">
+              <span className="text-xl leading-none" aria-hidden="true">
+                {dailySuggestion.type === "cook" ? "🍳" : "🍽️"}
+              </span>
+              <div className="min-w-0">
+                <p className="font-serif text-[22px] font-normal italic leading-snug text-[#0F1310]">
+                  {dailySuggestion.title}
+                </p>
+                <p className="mt-2 font-sans text-sm leading-relaxed text-[#0F1310]/75">
+                  {dailySuggestion.description}
+                </p>
+                <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+                  {dailySuggestion.type === "cook"
+                    ? `Est. groceries ${formatUsd(dailySuggestion.estimatedCost)}`
+                    : `Est. ${formatUsd(dailySuggestion.estimatedCost)}`}
+                </p>
+                <p className="mt-3 font-serif text-sm italic text-[#1F4D3A]">
+                  {dailySuggestion.reason}
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {errorMessage ? (
           <p
