@@ -1,11 +1,20 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+export type HomeAlternative = {
+  /** A cook-at-home dish approximating the dine-out experience. */
+  title: string;
+  /** Estimated grocery cost in USD. */
+  estimatedCost: number;
+};
+
 export type SuggestionResponse = {
   type: "cook" | "dine_out";
   title: string;
   description: string;
   estimatedCost: number;
   reason: string;
+  /** Present for dine_out picks: the cook-at-home comparison. */
+  homeAlternative?: HomeAlternative;
 };
 
 export type SuggestInput = {
@@ -49,8 +58,11 @@ Respond with ONLY a single JSON object (no markdown, no code fences) matching th
   "title": "string — dish name if cook, or venue/experience if dine_out",
   "description": "string — 1-2 elegant sentences",
   "estimatedCost": number — USD grocery estimate if cook, or estimated spend if dine_out,
-  "reason": "string — one short sentence tying the pick to her fund and tonight"
-}`;
+  "reason": "string — one short sentence tying the pick to her fund and tonight",
+  "homeAlternative": { "title": "string", "estimatedCost": number }
+}
+
+Include "homeAlternative" ONLY when type is "dine_out": propose a cook-at-home dish that captures the same craving/experience, with a realistic grocery cost (usually well below the restaurant spend). Omit "homeAlternative" entirely when type is "cook".`;
 }
 
 export function parseSuggestionJson(text: string): SuggestionResponse {
@@ -79,13 +91,33 @@ export function parseSuggestionJson(text: string): SuggestionResponse {
     throw new Error("Incomplete suggestion from model");
   }
 
-  return {
+  const result: SuggestionResponse = {
     type,
     title,
     description,
     estimatedCost: Math.max(0, Math.round(estimatedCost)),
     reason,
   };
+
+  // Parse the cook-at-home comparison, only meaningful for dine_out.
+  if (type === "dine_out" && parsed.homeAlternative) {
+    const alt = parsed.homeAlternative as Record<string, unknown>;
+    const altTitle = typeof alt.title === "string" ? alt.title.trim() : "";
+    const altCostRaw =
+      typeof alt.estimatedCost === "number"
+        ? alt.estimatedCost
+        : typeof alt.estimatedCost === "string"
+          ? parseFloat(alt.estimatedCost)
+          : NaN;
+    if (altTitle && Number.isFinite(altCostRaw)) {
+      result.homeAlternative = {
+        title: altTitle,
+        estimatedCost: Math.max(0, Math.round(altCostRaw)),
+      };
+    }
+  }
+
+  return result;
 }
 
 /** Normalize loose request input into safe suggestion parameters. */

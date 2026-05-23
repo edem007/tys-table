@@ -9,9 +9,16 @@ import {
 import { generateSuggestion } from "@/lib/suggest";
 import { generateDallasFeed } from "@/lib/dallas-feed";
 import {
+  readDallasFeed,
   writeDallasFeed,
   type DallasFeedEntry,
 } from "@/lib/dallas-feed-redis";
+import { generateWeeklySummary } from "@/lib/weekly-summary";
+import {
+  dallasWeekStart,
+  writeWeeklySummary,
+  type WeeklySummaryEntry,
+} from "@/lib/weekly-summary-redis";
 
 // Always run fresh; never cache the cron response.
 export const dynamic = "force-dynamic";
@@ -80,7 +87,35 @@ export async function GET(request: Request) {
       console.error("Dallas feed refresh failed:", feedErr);
     }
 
-    return NextResponse.json({ ok: true, feedCount, ...entry });
+    // On Sundays, also generate the weekly brief.
+    let weeklyGenerated = false;
+    if (today === dallasWeekStart()) {
+      try {
+        const feedEntry = await readDallasFeed();
+        const summary = await generateWeeklySummary({
+          balance,
+          targetAmount: state.targetAmount,
+          fundName: state.fundName,
+          feed: feedEntry?.items ?? [],
+        });
+        const weekly: WeeklySummaryEntry = {
+          weekOf: today,
+          summary,
+          generatedAt: new Date().toISOString(),
+        };
+        await writeWeeklySummary(weekly);
+        weeklyGenerated = true;
+      } catch (weeklyErr) {
+        console.error("Weekly summary generation failed:", weeklyErr);
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      feedCount,
+      weeklyGenerated,
+      ...entry,
+    });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: errorMessage(err) }, { status: 500 });

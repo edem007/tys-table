@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@/lib/dallas-feed";
+import type { WeeklySummary } from "@/lib/weekly-summary";
 
 const DEFAULT_FUND_NAME = "Stone Water Fund";
 const DEFAULT_TARGET_AMOUNT = 120;
@@ -47,6 +48,10 @@ type Suggestion = {
   description: string;
   estimatedCost: number;
   reason: string;
+  homeAlternative?: {
+    title: string;
+    estimatedCost: number;
+  };
 };
 
 function formatUsd(amount: number) {
@@ -103,6 +108,9 @@ export default function Home() {
   const [dailyDismissed, setDailyDismissed] = useState(false);
   const [dallasFeed, setDallasFeed] = useState<FeedItem[]>([]);
   const [isLoadingFeed, setIsLoadingFeed] = useState(true);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const dishFieldRef = useRef<HTMLInputElement>(null);
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
@@ -424,6 +432,31 @@ export default function Home() {
     }
   }
 
+  async function fetchWeeklySummary() {
+    setSummaryOpen(true);
+    if (weeklySummary || isLoadingSummary) return;
+
+    setIsLoadingSummary(true);
+    try {
+      const res = await fetch("/api/weekly-summary");
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+        throw new Error(
+          errBody.error ?? `Failed to load weekly brief (${res.status})`,
+        );
+      }
+      const data = (await res.json()) as { summary?: WeeklySummary };
+      if (data.summary) setWeeklySummary(data.summary);
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to load weekly brief",
+      );
+    } finally {
+      setIsLoadingSummary(false);
+    }
+  }
+
   async function cashOut() {
     if (isMutatingBank || !targetMet) return;
 
@@ -501,6 +534,17 @@ export default function Home() {
                     ? `Est. groceries ${formatUsd(dailySuggestion.estimatedCost)}`
                     : `Est. ${formatUsd(dailySuggestion.estimatedCost)}`}
                 </p>
+                {dailySuggestion.type === "dine_out" &&
+                dailySuggestion.homeAlternative ? (
+                  <p className="mt-2 font-sans text-[11px] text-[#7A2A1E]">
+                    Or cook in: {dailySuggestion.homeAlternative.title} (
+                    {formatUsd(dailySuggestion.homeAlternative.estimatedCost)})
+                    {dailySuggestion.estimatedCost >
+                    dailySuggestion.homeAlternative.estimatedCost
+                      ? ` — save ${formatUsd(dailySuggestion.estimatedCost - dailySuggestion.homeAlternative.estimatedCost)}`
+                      : ""}
+                  </p>
+                ) : null}
                 <p className="mt-3 font-serif text-sm italic text-[#1F4D3A]">
                   {dailySuggestion.reason}
                 </p>
@@ -701,6 +745,32 @@ export default function Home() {
                     ? `Est. groceries ${formatUsd(suggestion.estimatedCost)}`
                     : `Est. ${formatUsd(suggestion.estimatedCost)}`}
                 </p>
+                {suggestion.type === "dine_out" && suggestion.homeAlternative ? (
+                  <div className="mt-4 rounded-md border border-[#D9CDB0] bg-[#F2EAD8] p-3">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/45">
+                      Or cook it at home
+                    </p>
+                    <div className="mt-2 flex items-baseline justify-between gap-3">
+                      <p className="min-w-0 font-serif text-sm font-normal italic text-[#0F1310]">
+                        {suggestion.homeAlternative.title}
+                      </p>
+                      <p className="shrink-0 font-mono text-xs tabular-nums text-[#1F4D3A]">
+                        {formatUsd(suggestion.homeAlternative.estimatedCost)}
+                      </p>
+                    </div>
+                    {suggestion.estimatedCost >
+                    suggestion.homeAlternative.estimatedCost ? (
+                      <p className="mt-2 font-sans text-xs text-[#7A2A1E]">
+                        Save{" "}
+                        {formatUsd(
+                          suggestion.estimatedCost -
+                            suggestion.homeAlternative.estimatedCost,
+                        )}{" "}
+                        by cooking in.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <p className="mt-3 font-serif text-sm font-normal italic text-[#0F1310]/55">
                   {suggestion.reason}
                 </p>
@@ -833,6 +903,178 @@ export default function Home() {
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+
+        <section className="mt-16 w-full text-left">
+          <div className="mb-5 flex items-baseline justify-between gap-3 border-b border-[#D9CDB0] pb-2">
+            <h2 className="font-serif text-xl font-normal italic text-[#0F1310]">
+              Weekly Brief
+            </h2>
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0F1310]/45">
+              Every Sunday
+            </span>
+          </div>
+
+          {!summaryOpen ? (
+            <button
+              type="button"
+              onClick={() => {
+                void fetchWeeklySummary();
+              }}
+              className="w-full rounded-lg border border-[#0F1310]/15 bg-[#F2EAD8] px-5 py-4 text-left font-sans text-sm text-[#0F1310]/70 transition-colors hover:border-[#C28840]/50 hover:text-[#0F1310]"
+            >
+              Read this week&apos;s brief →
+            </button>
+          ) : isLoadingSummary && !weeklySummary ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-16 w-full animate-pulse rounded-lg bg-[#E8DFCC]"
+                />
+              ))}
+            </div>
+          ) : weeklySummary ? (
+            <div className="space-y-6 [animation:celebration-fade-in_0.6s_ease-out_forwards]">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#C28840]">
+                  This Week&apos;s Theme
+                </p>
+                <p className="mt-1 font-serif text-2xl font-normal italic text-[#0F1310]">
+                  {weeklySummary.theme}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-[#0F1310]/10 px-4 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                  Fund Status
+                </p>
+                <p className="mt-1 font-serif text-lg text-[#0F1310]">
+                  {formatUsd(weeklySummary.budget.saved)} of{" "}
+                  {formatUsd(weeklySummary.budget.target)}
+                </p>
+                {weeklySummary.budget.note ? (
+                  <p className="mt-1 font-sans text-sm text-[#0F1310]/70">
+                    {weeklySummary.budget.note}
+                  </p>
+                ) : null}
+              </div>
+
+              {weeklySummary.restaurantPicks.length > 0 ? (
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                    Top Picks
+                  </p>
+                  <ul className="mt-2 space-y-3">
+                    {weeklySummary.restaurantPicks.map((p, i) => (
+                      <li key={`${p.name}-${i}`}>
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-serif text-base italic text-[#0F1310]">
+                            {p.name}
+                          </span>
+                          {p.rating !== undefined ? (
+                            <span className="font-mono text-[10px] text-[#1F4D3A]">
+                              ★ {p.rating.toFixed(1)}
+                            </span>
+                          ) : null}
+                          {p.priceRange ? (
+                            <span className="font-mono text-[10px] text-[#0F1310]/45">
+                              {p.priceRange}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 font-sans text-sm text-[#0F1310]/70">
+                          {p.why}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="rounded-lg border border-[#D9CDB0] bg-[#F2EAD8] px-4 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                  Cook vs. Dine Out
+                </p>
+                <div className="mt-2 flex items-baseline justify-between gap-3 font-mono text-sm tabular-nums">
+                  <span className="text-[#0F1310]/70">
+                    Dining out {formatUsd(weeklySummary.costComparison.diningOut)}
+                  </span>
+                  <span className="text-[#1F4D3A]">
+                    Cooking {formatUsd(weeklySummary.costComparison.cooking)}
+                  </span>
+                </div>
+                {weeklySummary.costComparison.savings > 0 ? (
+                  <p className="mt-2 font-serif text-base italic text-[#7A2A1E]">
+                    Save {formatUsd(weeklySummary.costComparison.savings)} this
+                    week
+                  </p>
+                ) : null}
+                {weeklySummary.costComparison.note ? (
+                  <p className="mt-1 font-sans text-sm text-[#0F1310]/70">
+                    {weeklySummary.costComparison.note}
+                  </p>
+                ) : null}
+              </div>
+
+              {weeklySummary.entertainment.length > 0 ? (
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                    Entertainment
+                  </p>
+                  <ul className="mt-2 space-y-2">
+                    {weeklySummary.entertainment.map((e, i) => (
+                      <li key={`${e.name}-${i}`} className="font-sans text-sm">
+                        <span className="font-serif italic text-[#0F1310]">
+                          {e.name}
+                        </span>
+                        <span className="text-[#0F1310]/55">
+                          {" "}
+                          — {e.kind}
+                          {e.date ? ` · ${formatMonthDay(e.date)}` : ""}
+                        </span>
+                        {e.note ? (
+                          <span className="block text-[#0F1310]/70">
+                            {e.note}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {weeklySummary.plan.length > 0 ? (
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                    Your Week
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {weeklySummary.plan.map((line, i) => (
+                      <li
+                        key={i}
+                        className="font-sans text-sm leading-relaxed text-[#0F1310]/80"
+                      >
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setSummaryOpen(false)}
+                className="font-sans text-sm font-medium text-[#0F1310]/60 underline decoration-[#D9CDB0] underline-offset-4 transition-colors hover:text-[#0F1310]"
+              >
+                Hide brief
+              </button>
+            </div>
+          ) : (
+            <p className="font-sans text-sm text-[#0F1310]/55">
+              Couldn&apos;t load the brief. Try again later.
+            </p>
           )}
         </section>
 
