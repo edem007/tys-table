@@ -335,6 +335,45 @@ export default function Home() {
     : ledgerDeposits.slice(0, 7);
   const hasMoreLedger = ledgerDeposits.length > 7;
 
+  // --- Insights (computed from cook-night deposits) ---
+  const cookNights = deposits.filter((d) => d.amount > 0);
+  const totalCookNights = cookNights.length;
+  const totalBanked = cookNights.reduce((sum, d) => sum + d.amount, 0);
+
+  const topDishes = (() => {
+    const counts = new Map<string, { label: string; count: number }>();
+    for (const d of cookNights) {
+      const key = d.dish.trim().toLowerCase();
+      if (!key) continue;
+      const existing = counts.get(key);
+      if (existing) existing.count += 1;
+      else counts.set(key, { label: d.dish.trim(), count: 1 });
+    }
+    return [...counts.values()]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+  })();
+
+  const monthlyCookNights = (() => {
+    const counts = new Map<string, number>();
+    for (const d of cookNights) {
+      const month = d.date.slice(0, 7); // YYYY-MM
+      counts.set(month, (counts.get(month) ?? 0) + 1);
+    }
+    const sorted = [...counts.entries()].sort((a, b) =>
+      a[0] < b[0] ? -1 : 1,
+    );
+    const recent = sorted.slice(-6);
+    const max = recent.reduce((m, [, n]) => Math.max(m, n), 0);
+    return recent.map(([month, count]) => {
+      const d = new Date(`${month}-01T12:00:00`);
+      const label = Number.isNaN(d.getTime())
+        ? month
+        : d.toLocaleDateString("en-US", { month: "short" });
+      return { month, label, count, pct: max > 0 ? (count / max) * 100 : 0 };
+    });
+  })();
+
   useEffect(() => {
     if (!cookModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -836,6 +875,90 @@ export default function Home() {
             </>
           )}
         </section>
+
+        {totalCookNights > 0 ? (
+          <section className="mt-16 w-full text-left">
+            <div className="mb-5 flex items-baseline justify-between gap-3 border-b border-[#D9CDB0] pb-2">
+              <h2 className="font-serif text-xl font-normal italic text-[#0F1310]">
+                Insights
+              </h2>
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0F1310]/45">
+                Your Cooking
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-[#0F1310]/10 px-4 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                  Cook Nights
+                </p>
+                <p className="mt-1 font-serif text-3xl font-normal text-[#0F1310]">
+                  {totalCookNights}
+                </p>
+              </div>
+              <div className="rounded-lg border border-[#0F1310]/10 px-4 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                  Total Banked
+                </p>
+                <p className="mt-1 font-serif text-3xl font-normal text-[#1F4D3A]">
+                  {formatUsd(totalBanked)}
+                </p>
+              </div>
+            </div>
+
+            {topDishes.length > 0 ? (
+              <div className="mt-4">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                  Most Cooked
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {topDishes.map((d) => (
+                    <li
+                      key={d.label}
+                      className="flex items-baseline justify-between gap-3"
+                    >
+                      <span className="min-w-0 truncate font-serif text-base italic text-[#0F1310]">
+                        {d.label}
+                      </span>
+                      <span className="shrink-0 font-mono text-xs text-[#0F1310]/55">
+                        {d.count}×
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {monthlyCookNights.length > 1 ? (
+              <div className="mt-5">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                  Cook Nights by Month
+                </p>
+                <div className="mt-3 flex items-end justify-between gap-2">
+                  {monthlyCookNights.map((m) => (
+                    <div
+                      key={m.month}
+                      className="flex flex-1 flex-col items-center gap-1.5"
+                    >
+                      <span className="font-mono text-[10px] text-[#0F1310]/55">
+                        {m.count}
+                      </span>
+                      <div className="flex h-20 w-full items-end">
+                        <div
+                          className="w-full rounded-t-sm bg-[#7A2A1E] transition-[height] duration-300"
+                          style={{ height: `${Math.max(m.pct, 6)}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#0F1310]/50">
+                        {m.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <section className="mt-16 w-full text-left">
           <div className="mb-5 flex items-baseline justify-between gap-3 border-b border-[#D9CDB0] pb-2">
