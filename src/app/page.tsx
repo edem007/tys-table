@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const COOK_NIGHT_DEPOSIT = 16;
 const DEFAULT_FUND_NAME = "Stone Water Fund";
 const DEFAULT_TARGET_AMOUNT = 120;
 const MIN_TARGET_AMOUNT = 20;
@@ -28,11 +27,9 @@ type Deposit = {
 type BankGetResponse = {
   deposits: Deposit[];
   balance: number;
-  target_name: string;
-  target_amount: number;
+  fundName: string;
+  targetAmount: number;
 };
-
-type DepositPostResponse = BankGetResponse;
 
 type ApiErrorResponse = {
   error: string;
@@ -74,6 +71,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmittingDeposit, setIsSubmittingDeposit] = useState(false);
+  const [isMutatingBank, setIsMutatingBank] = useState(false);
   const [editingFundName, setEditingFundName] = useState(false);
   const [fundNameDraft, setFundNameDraft] = useState("");
   const [editingTargetAmount, setEditingTargetAmount] = useState(false);
@@ -88,9 +86,27 @@ export default function Home() {
   function applyBankResponse(data: BankGetResponse) {
     setDeposits(data.deposits);
     setBalance(data.balance);
-    setFundName(data.target_name);
-    setTargetAmount(data.target_amount);
+    setFundName(data.fundName);
+    setTargetAmount(data.targetAmount);
     setErrorMessage(null);
+  }
+
+  async function patchFund(body: {
+    fundName?: string;
+    targetAmount?: number;
+  }): Promise<BankGetResponse> {
+    const res = await fetch("/api/fund", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errBody = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+      throw new Error(errBody.error ?? `Failed to update fund (${res.status})`);
+    }
+    const data = (await res.json()) as BankGetResponse;
+    applyBankResponse(data);
+    return data;
   }
 
   async function fetchBank(): Promise<BankGetResponse> {
@@ -140,44 +156,85 @@ export default function Home() {
     targetAmount <= 0 ? 0 : Math.min((balance / targetAmount) * 100, 100);
   const targetMet = balance >= targetAmount;
 
-  function commitFundName() {
+  async function commitFundName() {
     const trimmed = fundNameDraft.trim().slice(0, 40);
-    if (trimmed) setFundName(trimmed);
     setEditingFundName(false);
+    if (!trimmed || trimmed === fundName) return;
+
+    setIsMutatingBank(true);
+    setErrorMessage(null);
+    try {
+      await patchFund({ fundName: trimmed });
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to update fund name",
+      );
+    } finally {
+      setIsMutatingBank(false);
+    }
   }
 
-  function commitTargetAmount() {
+  async function commitTargetAmount() {
     const digits = targetAmountDraft.replace(/\D/g, "");
     const n = parseInt(digits, 10);
-    if (
-      Number.isFinite(n) &&
-      n >= MIN_TARGET_AMOUNT &&
-      n <= MAX_TARGET_AMOUNT
-    ) {
-      setTargetAmount(n);
-    }
     setEditingTargetAmount(false);
+    if (
+      !Number.isFinite(n) ||
+      n < MIN_TARGET_AMOUNT ||
+      n > MAX_TARGET_AMOUNT ||
+      n === targetAmount
+    ) {
+      return;
+    }
+
+    setIsMutatingBank(true);
+    setErrorMessage(null);
+    try {
+      await patchFund({ targetAmount: n });
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to update target amount",
+      );
+    } finally {
+      setIsMutatingBank(false);
+    }
   }
 
   function beginEditFundName() {
-    if (editingTargetAmount) commitTargetAmount();
+    if (editingTargetAmount) void commitTargetAmount();
     setFundNameDraft(fundName);
     setEditingFundName(true);
     setEditingTargetAmount(false);
   }
 
   function beginEditTargetAmount() {
-    if (editingFundName) commitFundName();
+    if (editingFundName) void commitFundName();
     setTargetAmountDraft(String(targetAmount));
     setEditingTargetAmount(true);
     setEditingFundName(false);
   }
 
-  function applyFundPreset(label: string, amount: number) {
+  async function applyFundPreset(label: string, amount: number) {
     setEditingFundName(false);
     setEditingTargetAmount(false);
-    setFundName(label.slice(0, 40));
-    setTargetAmount(amount);
+
+    setIsMutatingBank(true);
+    setErrorMessage(null);
+    try {
+      await patchFund({
+        fundName: label.slice(0, 40),
+        targetAmount: amount,
+      });
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to apply preset",
+      );
+    } finally {
+      setIsMutatingBank(false);
+    }
   }
 
   const cookNightDeposits = deposits
@@ -237,10 +294,10 @@ export default function Home() {
     setIsSubmittingDeposit(true);
     setErrorMessage(null);
     try {
-      const res = await fetch("/api/bank", {
+      const res = await fetch("/api/deposits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dish, amount: COOK_NIGHT_DEPOSIT }),
+        body: JSON.stringify({ dish }),
       });
       if (!res.ok) {
         const errBody = (await res.json().catch(() => ({}))) as ApiErrorResponse;
@@ -248,7 +305,7 @@ export default function Home() {
           errBody.error ?? `Failed to save deposit (${res.status})`,
         );
       }
-      const data = (await res.json()) as DepositPostResponse;
+      const data = (await res.json()) as BankGetResponse;
       applyBankResponse(data);
       closeCookModal();
     } catch (err) {
@@ -261,23 +318,29 @@ export default function Home() {
     }
   }
 
-  function cashOut() {
-    setDeposits((prev) => {
-      const b = prev.reduce((s, d) => s + d.amount, 0);
-      if (b <= 0) return prev;
-      const today = new Date().toISOString().slice(0, 10);
-      const next = [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          date: today,
-          dish: "Cash out",
-          amount: -b,
-        },
-      ];
-      setBalance(0);
-      return next;
-    });
+  async function cashOut() {
+    if (isMutatingBank || balance <= 0) return;
+
+    setIsMutatingBank(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch("/api/cash-out", { method: "POST" });
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+        throw new Error(
+          errBody.error ?? `Failed to cash out (${res.status})`,
+        );
+      }
+      const data = (await res.json()) as BankGetResponse;
+      applyBankResponse(data);
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to cash out",
+      );
+    } finally {
+      setIsMutatingBank(false);
+    }
   }
 
   return (
@@ -333,11 +396,13 @@ export default function Home() {
                   const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
                   setTargetAmountDraft(digits);
                 }}
-                onBlur={commitTargetAmount}
+                onBlur={() => {
+                  void commitTargetAmount();
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    commitTargetAmount();
+                    void commitTargetAmount();
                   }
                   if (e.key === "Escape") {
                     e.preventDefault();
@@ -369,11 +434,13 @@ export default function Home() {
                 onChange={(e) =>
                   setFundNameDraft(e.target.value.slice(0, 40))
                 }
-                onBlur={commitFundName}
+                onBlur={() => {
+                  void commitFundName();
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    commitFundName();
+                    void commitFundName();
                   }
                   if (e.key === "Escape") {
                     e.preventDefault();
@@ -399,9 +466,10 @@ export default function Home() {
               <button
                 key={preset.label}
                 type="button"
-                onClick={() =>
-                  applyFundPreset(preset.label, preset.amount)
-                }
+                onClick={() => {
+                  void applyFundPreset(preset.label, preset.amount);
+                }}
+                disabled={isMutatingBank}
                 className="rounded-full border border-[#D9CDB0] bg-transparent px-[14px] py-[6px] font-sans text-[12px] font-medium leading-tight text-[#0F1310] transition-colors hover:border-[#0F1310] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
               >
                 {preset.label}
@@ -481,10 +549,13 @@ export default function Home() {
               </p>
               <button
                 type="button"
-                onClick={cashOut}
-                className="rounded-[2px] bg-[#0F1310] px-6 py-2.5 font-sans text-xs font-medium text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A]"
+                onClick={() => {
+                  void cashOut();
+                }}
+                disabled={isMutatingBank}
+                className="rounded-[2px] bg-[#0F1310] px-6 py-2.5 font-sans text-xs font-medium text-[#F2EAD8] transition-colors duration-200 hover:bg-[#7A2A1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4D3A] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Start a new fund
+                {isMutatingBank ? "Saving..." : "Start a new fund"}
               </button>
             </div>
           </div>
