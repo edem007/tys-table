@@ -6,7 +6,8 @@ const PUBLIC_ROUTES = [
   "/auth",
   "/auth/callback",
   "/auth/confirm",
-  "/api/cron", // Vercel cron jobs — protected by CRON_SECRET, not user auth
+  "/api/cron",        // Vercel cron jobs — protected by CRON_SECRET, not user auth
+  "/api/email",       // Email routes — protected by CRON_SECRET, not user auth
 ];
 
 export async function proxy(request: NextRequest) {
