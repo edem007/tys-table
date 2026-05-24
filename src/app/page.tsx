@@ -115,6 +115,8 @@ export default function Home() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [userName, setUserName] = useState("");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro">("free");
+  const [isUpgrading, setIsUpgrading] = useState(false);
   const dishFieldRef = useRef<HTMLInputElement>(null);
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
@@ -123,6 +125,36 @@ export default function Home() {
     const supabase = createClient();
     await supabase.auth.signOut();
     window.location.href = "/auth";
+  }
+
+  async function handleUpgrade() {
+    setIsUpgrading(true);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
+        }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) window.location.href = data.url;
+      else setErrorMessage(data.error ?? "Upgrade failed. Try again.");
+    } catch {
+      setErrorMessage("Upgrade failed. Try again.");
+    } finally {
+      setIsUpgrading(false);
+    }
+  }
+
+  async function handleManageBilling() {
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) window.location.href = data.url;
+    } catch {
+      setErrorMessage("Could not open billing portal.");
+    }
   }
 
   function applyBankResponse(data: BankGetResponse) {
@@ -226,10 +258,15 @@ export default function Home() {
       try {
         const res = await fetch("/api/preferences");
         if (!res.ok) return;
-        const data = (await res.json()) as { onboarded?: boolean; name?: string };
+        const data = (await res.json()) as {
+          onboarded?: boolean;
+          name?: string;
+          subscription_tier?: "free" | "pro";
+        };
         if (cancelled) return;
         if (!data.onboarded) setShowOnboarding(true);
         if (data.name) setUserName(data.name);
+        if (data.subscription_tier) setSubscriptionTier(data.subscription_tier);
       } catch (err) {
         console.error(err);
       }
@@ -585,12 +622,44 @@ export default function Home() {
                 {userName ? userName.charAt(0).toUpperCase() : "?"}
               </button>
               {profileMenuOpen ? (
-                <div className="absolute right-0 top-10 z-50 min-w-[160px] rounded-xl border border-[#D9CDB0] bg-[#F2EAD8] p-2 shadow-lg">
+                <div className="absolute right-0 top-10 z-50 min-w-[180px] rounded-xl border border-[#D9CDB0] bg-[#F2EAD8] p-2 shadow-lg">
                   {userName ? (
-                    <p className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
-                      {userName}
-                    </p>
+                    <div className="flex items-center gap-2 px-3 py-1.5">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                        {userName}
+                      </p>
+                      {subscriptionTier === "pro" ? (
+                        <span className="rounded-full bg-[#C28840] px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-[#F2EAD8]">
+                          Pro
+                        </span>
+                      ) : null}
+                    </div>
                   ) : null}
+                  {subscriptionTier === "free" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        void handleUpgrade();
+                      }}
+                      disabled={isUpgrading}
+                      className="w-full rounded-lg px-3 py-2 text-left font-sans text-sm font-medium text-[#C28840] transition-colors hover:bg-[#C28840]/10 disabled:opacity-50"
+                    >
+                      {isUpgrading ? "Redirecting…" : "Upgrade to Pro"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        void handleManageBilling();
+                      }}
+                      className="w-full rounded-lg px-3 py-2 text-left font-sans text-sm text-[#0F1310]/70 transition-colors hover:bg-[#0F1310]/5"
+                    >
+                      Manage Billing
+                    </button>
+                  )}
+                  <div className="my-1 border-t border-[#D9CDB0]" />
                   <button
                     type="button"
                     onClick={() => {

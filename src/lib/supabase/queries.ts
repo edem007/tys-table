@@ -42,9 +42,13 @@ export async function updateProfile(
 export async function getPreferences(
   supabase: Supabase,
   userId: string,
-): Promise<Preferences & { display_name: string }> {
+): Promise<Preferences & { display_name: string; subscription_tier: "free" | "pro" }> {
   const [profileRes, prefsRes] = await Promise.all([
-    supabase.from("profiles").select("display_name").eq("id", userId).single(),
+    supabase
+      .from("profiles")
+      .select("display_name, subscription_tier")
+      .eq("id", userId)
+      .single(),
     supabase
       .from("user_preferences")
       .select("*")
@@ -53,16 +57,19 @@ export async function getPreferences(
   ]);
 
   const name = profileRes.data?.display_name ?? DEFAULT_PREFERENCES.name;
+  const subscription_tier =
+    (profileRes.data?.subscription_tier as "free" | "pro" | null) ?? "free";
 
   if (prefsRes.error || !prefsRes.data) {
     // No preferences row yet — return defaults
-    return { ...DEFAULT_PREFERENCES, name, display_name: name };
+    return { ...DEFAULT_PREFERENCES, name, display_name: name, subscription_tier };
   }
 
   const p = prefsRes.data;
   return {
     name,
     display_name: name,
+    subscription_tier,
     cuisines: p.cuisines,
     monthlyBudget: p.monthly_budget,
     cookNights: p.cook_nights,
