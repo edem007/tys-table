@@ -173,6 +173,6 @@ MIT — see [LICENSE](LICENSE) for details.
 
 ## About
 
-Built by **Prince & Ty** in Dallas, TX. What started as a personal savings game became a platform for anyone who loves food, values experiences, and wants to be intentional about how they dine.
+Built by **Prince Tsagli** in Dallas, TX. What started as a personal savings game became a platform for anyone who loves food, values experiences, and wants to be intentional about how they dine.
 
 > *"Cook more. Save smart. Dine like you mean it."*
