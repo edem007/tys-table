@@ -2,7 +2,6 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { FeedItem } from "./dallas-feed";
 import {
   buildTasteProfile,
-  DEFAULT_PREFERENCES,
   type Preferences,
 } from "./preferences";
 

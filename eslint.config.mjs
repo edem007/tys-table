@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Binary / generated scripts — not lintable
+    "scripts/**",
   ]),
 ]);
 
