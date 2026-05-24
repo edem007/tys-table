@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
     const weeklySummaryText = weeklySummaryEntry?.summary?.headline ?? "";
     const dallasFeedItems = (feedEntry?.items ?? []).map((item) => ({
-      title: item.title,
+      title: item.name,
       date: item.date,
       description: item.description,
     }));
