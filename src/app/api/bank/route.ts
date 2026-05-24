@@ -1,50 +1,78 @@
 /**
- * Ty's Table — Savings Bank API (Upstash Redis)
+ * Ty's Table — Savings Bank API (Supabase Postgres)
  *
- * Stores full BankState JSON under Redis key "bank_state".
- * Env: KV_REST_API_URL, KV_REST_API_TOKEN
+ * GET  /api/bank — load the current user's active fund + deposits + balance
+ * POST /api/bank — append a cook-night deposit to the active fund
  */
 import { NextResponse } from "next/server";
-import { COOK_NIGHT_DEPOSIT, computeBalance, errorMessage } from "@/lib/bank-api";
-import type { Deposit } from "@/lib/bank-types";
+import { createClient } from "@/lib/supabase/server";
 import {
-  readBankFromRedis,
-  withBankRedis,
-} from "@/lib/bank-redis";
+  getActiveFund,
+  getDepositsForFund,
+  addDeposit,
+  createFund,
+  computeBalanceFromDeposits,
+} from "@/lib/supabase/queries";
+import { COOK_NIGHT_DEPOSIT, errorMessage } from "@/lib/bank-api";
 
-export type BankRouteResponse = {
-  deposits: Deposit[];
-  balance: number;
-  target_name: string;
-  target_amount: number;
-  /** @deprecated Use target_name — kept so existing clients keep working */
-  fundName: string;
-  /** @deprecated Use target_amount — kept so existing clients keep working */
-  targetAmount: number;
-};
+export const dynamic = "force-dynamic";
 
-function toRouteResponse(state: {
-  deposits: Deposit[];
-  fundName: string;
-  targetAmount: number;
-}): BankRouteResponse {
-  const balance = computeBalance(state.deposits);
+const DEFAULT_FUND_NAME = "My First Goal";
+const DEFAULT_TARGET_AMOUNT = 120;
+
+function toRouteResponse(
+  deposits: { id: string; date: string; dish: string; amount: number }[],
+  fundName: string,
+  targetAmount: number,
+) {
+  const balance = computeBalanceFromDeposits(deposits);
   return {
-    deposits: state.deposits,
+    deposits,
     balance,
-    target_name: state.fundName,
-    target_amount: state.targetAmount,
-    fundName: state.fundName,
-    targetAmount: state.targetAmount,
+    target_name: fundName,
+    target_amount: targetAmount,
+    // Legacy aliases kept so the existing client keeps working
+    fundName,
+    targetAmount,
   };
 }
 
-/** GET /api/bank — load full bank snapshot from Redis */
+/** GET /api/bank — load full bank snapshot */
 export async function GET() {
   try {
-    const state = await readBankFromRedis();
-    return NextResponse.json(toRouteResponse(state));
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    let fund = await getActiveFund(supabase, user.id);
+
+    // Auto-create a default fund if the user has none yet
+    if (!fund) {
+      fund = await createFund(
+        supabase,
+        user.id,
+        DEFAULT_FUND_NAME,
+        DEFAULT_TARGET_AMOUNT,
+      );
+    }
+
+    const rawDeposits = await getDepositsForFund(supabase, fund.id, user.id);
+    const deposits = rawDeposits.map((d) => ({
+      id: d.id,
+      date: d.date,
+      dish: d.dish,
+      amount: d.amount,
+    }));
+
+    return NextResponse.json(
+      toRouteResponse(deposits, fund.name, fund.target_amount),
+    );
   } catch (err) {
+    console.error(err);
     return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
   }
 }
@@ -52,6 +80,14 @@ export async function GET() {
 /** POST /api/bank — append a cook-night deposit */
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     let body: { dish?: string; amount?: number };
     try {
       body = (await request.json()) as { dish?: string; amount?: number };
@@ -69,17 +105,31 @@ export async function POST(request: Request) {
         ? body.amount
         : COOK_NIGHT_DEPOSIT;
 
-    const state = await withBankRedis((bank) => {
-      bank.deposits.push({
-        id: crypto.randomUUID(),
-        date: new Date().toISOString().slice(0, 10),
-        dish,
-        amount,
-      });
-    });
+    let fund = await getActiveFund(supabase, user.id);
+    if (!fund) {
+      fund = await createFund(
+        supabase,
+        user.id,
+        DEFAULT_FUND_NAME,
+        DEFAULT_TARGET_AMOUNT,
+      );
+    }
 
-    return NextResponse.json(toRouteResponse(state));
+    await addDeposit(supabase, user.id, fund.id, dish, amount);
+
+    const rawDeposits = await getDepositsForFund(supabase, fund.id, user.id);
+    const deposits = rawDeposits.map((d) => ({
+      id: d.id,
+      date: d.date,
+      dish: d.dish,
+      amount: d.amount,
+    }));
+
+    return NextResponse.json(
+      toRouteResponse(deposits, fund.name, fund.target_amount),
+    );
   } catch (err) {
+    console.error(err);
     return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
   }
 }

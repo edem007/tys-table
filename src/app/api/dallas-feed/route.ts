@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { getPreferences } from "@/lib/supabase/queries";
 import { dallasToday } from "@/lib/daily-suggestion-redis";
 import { generateDallasFeed } from "@/lib/dallas-feed";
 import {
@@ -6,7 +8,6 @@ import {
   writeDallasFeed,
   type DallasFeedEntry,
 } from "@/lib/dallas-feed-redis";
-import { readPreferences } from "@/lib/preferences-redis";
 
 export const dynamic = "force-dynamic";
 // Web search can take a while; allow up to 60s.
@@ -22,9 +23,20 @@ function errorMessage(err: unknown): string {
  * Returns today's cached "This Week in Dallas" feed. If there is no fresh
  * feed for today, generates one via web search, caches it, and returns it.
  * Pass ?refresh=1 to force regeneration.
+ *
+ * Note: the feed is cached globally in Redis (shared across all users) since
+ * it represents city-wide events. User preferences personalize the tone.
  */
 export async function GET(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const today = dallasToday();
     const force = new URL(request.url).searchParams.get("refresh") === "1";
 
@@ -35,7 +47,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const prefs = await readPreferences();
+    const prefs = await getPreferences(supabase, user.id);
     const items = await generateDallasFeed(today, prefs);
     const entry: DallasFeedEntry = {
       date: today,

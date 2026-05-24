@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { computeBalance } from "@/lib/bank-api";
-import { readBankFromRedis } from "@/lib/bank-redis";
+import { createClient } from "@/lib/supabase/server";
+import { getPreferences, getActiveFund, getDepositsForFund, computeBalanceFromDeposits } from "@/lib/supabase/queries";
 import { readDallasFeed } from "@/lib/dallas-feed-redis";
-import { readPreferences } from "@/lib/preferences-redis";
 import { generateWeeklySummary } from "@/lib/weekly-summary";
 import {
   dallasWeekStart,
@@ -21,11 +20,19 @@ function errorMessage(err: unknown): string {
 
 /**
  * GET /api/weekly-summary
- * Returns this week's brief from cache, or generates one from the bank state
- * and the cached Dallas feed. Pass ?refresh=1 to force regeneration.
+ * Returns this week's brief from cache, or generates one from the user's
+ * bank state and the cached Dallas feed. Pass ?refresh=1 to force regeneration.
  */
 export async function GET(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const weekOf = dallasWeekStart();
     const force = new URL(request.url).searchParams.get("refresh") === "1";
 
@@ -36,16 +43,27 @@ export async function GET(request: Request) {
       }
     }
 
-    const [state, feed, prefs] = await Promise.all([
-      readBankFromRedis(),
+    const [prefs, feed, fund] = await Promise.all([
+      getPreferences(supabase, user.id),
       readDallasFeed(),
-      readPreferences(),
+      getActiveFund(supabase, user.id),
     ]);
 
+    let balance = 0;
+    let targetAmount = 120;
+    let fundName = "My Goal";
+
+    if (fund) {
+      const deposits = await getDepositsForFund(supabase, fund.id, user.id);
+      balance = computeBalanceFromDeposits(deposits);
+      targetAmount = fund.target_amount;
+      fundName = fund.name;
+    }
+
     const summary = await generateWeeklySummary({
-      balance: computeBalance(state.deposits),
-      targetAmount: state.targetAmount,
-      fundName: state.fundName,
+      balance,
+      targetAmount,
+      fundName,
       feed: feed?.items ?? [],
       prefs,
     });

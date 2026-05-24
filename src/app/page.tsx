@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@/lib/dallas-feed";
 import type { WeeklySummary } from "@/lib/weekly-summary";
 import Onboarding from "./Onboarding";
+import { createClient } from "@/lib/supabase/client";
 
 const DEFAULT_FUND_NAME = "Stone Water Fund";
 const DEFAULT_TARGET_AMOUNT = 120;
@@ -113,9 +114,17 @@ export default function Home() {
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const dishFieldRef = useRef<HTMLInputElement>(null);
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/auth";
+  }
 
   function applyBankResponse(data: BankGetResponse) {
     setDeposits(data.deposits);
@@ -218,9 +227,10 @@ export default function Home() {
       try {
         const res = await fetch("/api/preferences");
         if (!res.ok) return;
-        const data = (await res.json()) as { onboarded?: boolean };
+        const data = (await res.json()) as { onboarded?: boolean; name?: string };
         if (cancelled) return;
         if (!data.onboarded) setShowOnboarding(true);
+        if (data.name) setUserName(data.name);
       } catch (err) {
         console.error(err);
       }
@@ -540,8 +550,9 @@ export default function Home() {
     <>
       {showOnboarding ? (
         <Onboarding
-          onComplete={() => {
+          onComplete={(prefs) => {
             setShowOnboarding(false);
+            if (prefs.name) setUserName(prefs.name);
             void fetchBank();
           }}
         />
@@ -554,13 +565,47 @@ export default function Home() {
             : "max-[599px]:pb-[calc(10.5rem+env(safe-area-inset-bottom))]"
         }`}
       >
-        <header className="mb-12 text-center min-[600px]:mb-16">
-          <p className="font-serif text-[2rem] font-medium italic leading-tight tracking-tight text-[#0F1310] min-[600px]:text-5xl min-[600px]:leading-none">
-            Ty&apos;s Table
-          </p>
-          <p className="mt-3 font-mono text-[11px] font-normal uppercase tracking-[0.22em] text-[#0F1310]/70">
-            Est. 2026 · Dallas
-          </p>
+        <header className="mb-12 min-[600px]:mb-16">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 text-center">
+              <p className="font-serif text-[2rem] font-medium italic leading-tight tracking-tight text-[#0F1310] min-[600px]:text-5xl min-[600px]:leading-none">
+                Ty&apos;s Table
+              </p>
+              <p className="mt-3 font-mono text-[11px] font-normal uppercase tracking-[0.22em] text-[#0F1310]/70">
+                Est. 2026 · Dallas
+              </p>
+            </div>
+            {/* Profile / Sign-out menu */}
+            <div className="relative ml-2 mt-1 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setProfileMenuOpen((o) => !o)}
+                aria-label="Account menu"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0F1310] font-sans text-xs font-semibold text-[#F2EAD8] transition-colors hover:bg-[#C28840]"
+              >
+                {userName ? userName.charAt(0).toUpperCase() : "?"}
+              </button>
+              {profileMenuOpen ? (
+                <div className="absolute right-0 top-10 z-50 min-w-[160px] rounded-xl border border-[#D9CDB0] bg-[#F2EAD8] p-2 shadow-lg">
+                  {userName ? (
+                    <p className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                      {userName}
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      void handleSignOut();
+                    }}
+                    className="w-full rounded-lg px-3 py-2 text-left font-sans text-sm text-[#7A2A1E] hover:bg-[#7A2A1E]/10"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </header>
 
         {dailySuggestion && !dailyDismissed ? (
