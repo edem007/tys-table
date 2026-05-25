@@ -117,6 +117,7 @@ export default function Home() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro">("free");
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [depositAmount, setDepositAmount] = useState(16);
   const dishFieldRef = useRef<HTMLInputElement>(null);
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
@@ -262,11 +263,13 @@ export default function Home() {
           onboarded?: boolean;
           name?: string;
           subscription_tier?: "free" | "pro";
+          depositAmount?: number;
         };
         if (cancelled) return;
         if (!data.onboarded) setShowOnboarding(true);
         if (data.name) setUserName(data.name);
         if (data.subscription_tier) setSubscriptionTier(data.subscription_tier);
+        if (data.depositAmount) setDepositAmount(data.depositAmount);
       } catch (err) {
         console.error(err);
       }
@@ -1430,6 +1433,9 @@ export default function Home() {
                 >
                   What did you cook tonight?
                 </h2>
+                <p className="mt-1.5 text-center font-mono text-[10px] uppercase tracking-[0.16em] text-[#1F4D3A]">
+                  You&apos;ll bank +${depositAmount} tonight
+                </p>
                 <label htmlFor="cook-dish-input" className="sr-only">
                   Dish name
                 </label>

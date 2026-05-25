@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getPreferences, upsertPreferences } from "@/lib/supabase/queries";
-import { normalizePreferences } from "@/lib/preferences";
+import { normalizePreferences, computeCookNightDeposit } from "@/lib/preferences";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,8 @@ export async function GET() {
     }
 
     const prefs = await getPreferences(supabase, user.id);
-    return NextResponse.json(prefs);
+    const depositAmount = computeCookNightDeposit(prefs);
+    return NextResponse.json({ ...prefs, depositAmount });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: errorMessage(err) }, { status: 500 });

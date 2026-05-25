@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CUISINE_OPTIONS, type Preferences } from "@/lib/preferences";
+import { CUISINE_OPTIONS, computeCookNightDeposit, type Preferences } from "@/lib/preferences";
 
 type OnboardingProps = {
   onComplete: (prefs: Preferences) => void;
@@ -10,17 +10,33 @@ type OnboardingProps = {
 const MIN_TARGET = 20;
 const MAX_TARGET = 2000;
 
+const PARTY_SIZE_OPTIONS = [
+  { label: "Just me", value: 1, emoji: "🧑" },
+  { label: "Two of us", value: 2, emoji: "👥" },
+  { label: "3–4 people", value: 3, emoji: "👨‍👩‍👧" },
+  { label: "5+ people", value: 5, emoji: "👨‍👩‍👧‍👦" },
+] as const;
+
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [name, setName] = useState("");
   const [cuisines, setCuisines] = useState<string[]>([]);
   const [budget, setBudget] = useState("400");
   const [cookNights, setCookNights] = useState(4);
+  const [partySize, setPartySize] = useState(2);
   const [goalName, setGoalName] = useState("");
   const [goalTarget, setGoalTarget] = useState("120");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const dineOutNights = Math.max(0, 7 - cookNights);
+
+  // Live deposit preview
+  const monthlyBudget = parseInt(budget.replace(/\D/g, ""), 10) || 400;
+  const depositPreview = computeCookNightDeposit({
+    monthlyBudget,
+    dineOutNights,
+    partySize,
+  });
 
   function toggleCuisine(c: string) {
     setCuisines((prev) =>
@@ -32,7 +48,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     const trimmedName = name.trim();
     const trimmedGoal = goalName.trim();
     const target = parseInt(goalTarget.replace(/\D/g, ""), 10);
-    const monthlyBudget = parseInt(budget.replace(/\D/g, ""), 10);
 
     if (!trimmedName) {
       setError("Please enter your name.");
@@ -60,6 +75,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         monthlyBudget: Number.isFinite(monthlyBudget) ? monthlyBudget : 400,
         cookNights,
         dineOutNights,
+        partySize,
         onboarded: true,
       };
 
@@ -112,6 +128,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         </p>
 
         <div className="mt-6 space-y-6">
+          {/* Name */}
           <div>
             <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
               Your name
@@ -125,6 +142,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             />
           </div>
 
+          {/* Cuisines */}
           <div>
             <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
               Cuisines you love
@@ -150,6 +168,34 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             </div>
           </div>
 
+          {/* Who's eating */}
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+              Who&apos;s at the table?
+            </label>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {PARTY_SIZE_OPTIONS.map((opt) => {
+                const selected = partySize === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setPartySize(opt.value)}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      selected
+                        ? "border-[#7A2A1E] bg-[#7A2A1E]/8 text-[#0F1310]"
+                        : "border-[#D9CDB0] text-[#0F1310]/70 hover:border-[#C28840]"
+                    }`}
+                  >
+                    <span className="text-base leading-none">{opt.emoji}</span>
+                    <span className="font-sans text-sm">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Monthly budget */}
           <div>
             <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
               Monthly dining budget
@@ -168,6 +214,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             </div>
           </div>
 
+          {/* Cook vs dine-out */}
           <div>
             <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
               Cook vs. dine-out (per week)
@@ -186,6 +233,24 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             />
           </div>
 
+          {/* Deposit preview */}
+          <div className="rounded-lg border border-[#C28840]/40 bg-[#C28840]/6 px-4 py-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#C28840]">
+              Your cook-night deposit
+            </p>
+            <p className="mt-1 font-serif text-2xl font-normal text-[#0F1310]">
+              +${depositPreview}{" "}
+              <span className="font-sans text-sm font-normal text-[#0F1310]/55">
+                per night
+              </span>
+            </p>
+            <p className="mt-1 font-sans text-xs text-[#0F1310]/55">
+              Based on your budget, nights out, and party size — what you save
+              by cooking instead.
+            </p>
+          </div>
+
+          {/* First savings goal */}
           <div className="rounded-lg border border-[#D9CDB0] p-4">
             <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
               Your first savings goal

@@ -54,6 +54,7 @@ export type Database = {
           monthly_budget: number;
           cook_nights: number;
           dine_out_nights: number;
+          party_size: number;
           onboarded: boolean;
           updated_at: string;
         };
@@ -63,6 +64,7 @@ export type Database = {
           monthly_budget?: number;
           cook_nights?: number;
           dine_out_nights?: number;
+          party_size?: number;
           onboarded?: boolean;
           updated_at?: string;
         };
@@ -71,6 +73,7 @@ export type Database = {
           monthly_budget?: number;
           cook_nights?: number;
           dine_out_nights?: number;
+          party_size?: number;
           onboarded?: boolean;
           updated_at?: string;
         };

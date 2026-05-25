@@ -74,6 +74,7 @@ export async function getPreferences(
     monthlyBudget: p.monthly_budget,
     cookNights: p.cook_nights,
     dineOutNights: p.dine_out_nights,
+    partySize: p.party_size ?? DEFAULT_PREFERENCES.partySize,
     onboarded: p.onboarded,
   };
 }
@@ -103,6 +104,7 @@ export async function upsertPreferences(
       ...(prefs.dineOutNights !== undefined && {
         dine_out_nights: prefs.dineOutNights,
       }),
+      ...(prefs.partySize !== undefined && { party_size: prefs.partySize }),
       ...(prefs.onboarded !== undefined && { onboarded: prefs.onboarded }),
     },
     { onConflict: "user_id" },
