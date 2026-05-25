@@ -3,8 +3,20 @@
 import { useState } from "react";
 import { CUISINE_OPTIONS, computeCookNightDeposit, type Preferences } from "@/lib/preferences";
 
+type InitialValues = {
+  name?: string;
+  cuisines?: string[];
+  monthlyBudget?: number;
+  cookNights?: number;
+  partySize?: number;
+  goalName?: string;
+  goalTarget?: number;
+};
+
 type OnboardingProps = {
   onComplete: (prefs: Preferences) => void;
+  onClose?: () => void;          // present → settings mode (shows close button)
+  initialValues?: InitialValues;
 };
 
 const MIN_TARGET = 20;
@@ -17,14 +29,16 @@ const PARTY_SIZE_OPTIONS = [
   { label: "5+ people", value: 5, emoji: "👨‍👩‍👧‍👦" },
 ] as const;
 
-export default function Onboarding({ onComplete }: OnboardingProps) {
-  const [name, setName] = useState("");
-  const [cuisines, setCuisines] = useState<string[]>([]);
-  const [budget, setBudget] = useState("400");
-  const [cookNights, setCookNights] = useState(4);
-  const [partySize, setPartySize] = useState(2);
-  const [goalName, setGoalName] = useState("");
-  const [goalTarget, setGoalTarget] = useState("120");
+export default function Onboarding({ onComplete, onClose, initialValues }: OnboardingProps) {
+  const isSettingsMode = !!onClose;
+
+  const [name, setName] = useState(initialValues?.name ?? "");
+  const [cuisines, setCuisines] = useState<string[]>(initialValues?.cuisines ?? []);
+  const [budget, setBudget] = useState(String(initialValues?.monthlyBudget ?? 400));
+  const [cookNights, setCookNights] = useState(initialValues?.cookNights ?? 4);
+  const [partySize, setPartySize] = useState(initialValues?.partySize ?? 2);
+  const [goalName, setGoalName] = useState(initialValues?.goalName ?? "");
+  const [goalTarget, setGoalTarget] = useState(String(initialValues?.goalTarget ?? 120));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,13 +71,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       setError("Pick at least one cuisine you love.");
       return;
     }
-    if (!trimmedGoal) {
-      setError("Name your first savings goal.");
-      return;
-    }
-    if (!Number.isFinite(target) || target < MIN_TARGET || target > MAX_TARGET) {
-      setError(`Goal target must be between $${MIN_TARGET} and $${MAX_TARGET}.`);
-      return;
+    if (!isSettingsMode) {
+      // Only require goal during fresh onboarding
+      if (!trimmedGoal) {
+        setError("Name your first savings goal.");
+        return;
+      }
+      if (!Number.isFinite(target) || target < MIN_TARGET || target > MAX_TARGET) {
+        setError(`Goal target must be between $${MIN_TARGET} and $${MAX_TARGET}.`);
+        return;
+      }
     }
 
     setSaving(true);
@@ -79,18 +96,26 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         onboarded: true,
       };
 
-      const [prefsRes] = await Promise.all([
+      const requests: Promise<Response>[] = [
         fetch("/api/preferences", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(prefsBody),
         }),
-        fetch("/api/fund", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fundName: trimmedGoal, targetAmount: target }),
-        }),
-      ]);
+      ];
+
+      // Only update the fund during fresh onboarding
+      if (!isSettingsMode && trimmedGoal) {
+        requests.push(
+          fetch("/api/fund", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fundName: trimmedGoal, targetAmount: target }),
+          }),
+        );
+      }
+
+      const [prefsRes] = await Promise.all(requests);
 
       if (!prefsRes.ok) {
         throw new Error("Could not save your preferences. Please try again.");
@@ -114,23 +139,43 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#0F1310]/40 px-4 py-8 backdrop-blur-sm"
     >
       <div className="w-full max-w-md rounded-xl bg-[#F2EAD8] p-6 shadow-xl min-[600px]:p-8 [animation:celebration-fade-in_0.5s_ease-out_forwards]">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#C28840]">
-          Welcome to
-        </p>
-        <h1
-          id="onboarding-title"
-          className="mt-1 font-serif text-3xl font-medium italic text-[#0F1310]"
-        >
-          Ty&apos;s Table
-        </h1>
-        <p className="mt-2 font-sans text-sm text-[#0F1310]/70">
-          A few details so your strategist knows your taste.
-        </p>
+
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.22em] text-[#C28840]">
+              {isSettingsMode ? "Your settings" : "Welcome to"}
+            </p>
+            <h1
+              id="onboarding-title"
+              className="mt-1 font-serif text-3xl font-medium italic text-[#0F1310]"
+            >
+              {isSettingsMode ? "Update your table" : "Ty’s Table"}
+            </h1>
+            {!isSettingsMode && (
+              <p className="mt-2 font-sans text-sm text-[#0F1310]/75">
+                A few details so your strategist knows your taste.
+              </p>
+            )}
+          </div>
+          {isSettingsMode && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close settings"
+              className="ml-4 mt-1 flex h-8 w-8 items-center justify-center rounded-full text-[#0F1310]/50 transition-colors hover:bg-[#0F1310]/8 hover:text-[#0F1310]"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+          )}
+        </div>
 
         <div className="mt-6 space-y-6">
           {/* Name */}
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+            <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
               Your name
             </label>
             <input
@@ -144,7 +189,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
           {/* Cuisines */}
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+            <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
               Cuisines you love
             </label>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -158,7 +203,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     className={`rounded-full border px-3 py-1.5 font-sans text-sm capitalize transition-colors ${
                       selected
                         ? "border-[#7A2A1E] bg-[#7A2A1E] text-[#F2EAD8]"
-                        : "border-[#D9CDB0] text-[#0F1310]/70 hover:border-[#C28840]"
+                        : "border-[#D9CDB0] text-[#0F1310]/75 hover:border-[#C28840]"
                     }`}
                   >
                     {c}
@@ -170,7 +215,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
           {/* Who's eating */}
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+            <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
               Who&apos;s at the table?
             </label>
             <div className="mt-2 grid grid-cols-2 gap-2">
@@ -184,7 +229,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors ${
                       selected
                         ? "border-[#7A2A1E] bg-[#7A2A1E]/8 text-[#0F1310]"
-                        : "border-[#D9CDB0] text-[#0F1310]/70 hover:border-[#C28840]"
+                        : "border-[#D9CDB0] text-[#0F1310]/75 hover:border-[#C28840]"
                     }`}
                   >
                     <span className="text-base leading-none">{opt.emoji}</span>
@@ -197,7 +242,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
           {/* Monthly budget */}
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+            <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
               Monthly dining budget
             </label>
             <div className="mt-2 flex items-baseline gap-1">
@@ -216,7 +261,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
           {/* Cook vs dine-out */}
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+            <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
               Cook vs. dine-out (per week)
             </label>
             <p className="mt-2 font-serif text-base text-[#0F1310]">
@@ -235,48 +280,50 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
           {/* Deposit preview */}
           <div className="rounded-lg border border-[#C28840]/40 bg-[#C28840]/6 px-4 py-3">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#C28840]">
+            <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#C28840]">
               Your cook-night deposit
             </p>
             <p className="mt-1 font-serif text-2xl font-normal text-[#0F1310]">
               +${depositPreview}{" "}
-              <span className="font-sans text-sm font-normal text-[#0F1310]/55">
+              <span className="font-sans text-sm font-normal text-[#0F1310]/65">
                 per night
               </span>
             </p>
-            <p className="mt-1 font-sans text-xs text-[#0F1310]/55">
+            <p className="mt-1 font-sans text-xs text-[#0F1310]/65">
               Based on your budget, nights out, and party size — what you save
               by cooking instead.
             </p>
           </div>
 
-          {/* First savings goal */}
-          <div className="rounded-lg border border-[#D9CDB0] p-4">
-            <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
-              Your first savings goal
-            </label>
-            <input
-              type="text"
-              value={goalName}
-              onChange={(e) => setGoalName(e.target.value.slice(0, 40))}
-              placeholder="e.g. Bishop Arts Dinner"
-              className="mt-2 w-full border-0 border-b border-[#D9CDB0] bg-transparent pb-1 font-serif text-base text-[#0F1310] outline-none focus:border-b-[#7A2A1E]"
-            />
-            <div className="mt-3 flex items-baseline gap-1">
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
-                Target $
-              </span>
+          {/* First savings goal — only during fresh onboarding */}
+          {!isSettingsMode && (
+            <div className="rounded-lg border border-[#D9CDB0] p-4">
+              <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
+                Your first savings goal
+              </label>
               <input
                 type="text"
-                inputMode="numeric"
-                value={goalTarget}
-                onChange={(e) =>
-                  setGoalTarget(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
-                className="w-24 border-0 border-b border-[#D9CDB0] bg-transparent pb-1 font-serif text-base text-[#0F1310] outline-none focus:border-b-[#7A2A1E]"
+                value={goalName}
+                onChange={(e) => setGoalName(e.target.value.slice(0, 40))}
+                placeholder="e.g. Bishop Arts Dinner"
+                className="mt-2 w-full border-0 border-b border-[#D9CDB0] bg-transparent pb-1 font-serif text-base text-[#0F1310] outline-none focus:border-b-[#7A2A1E]"
               />
+              <div className="mt-3 flex items-baseline gap-1">
+                <span className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
+                  Target $
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={goalTarget}
+                  onChange={(e) =>
+                    setGoalTarget(e.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
+                  className="w-24 border-0 border-b border-[#D9CDB0] bg-transparent pb-1 font-serif text-base text-[#0F1310] outline-none focus:border-b-[#7A2A1E]"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {error ? (
             <p role="alert" className="font-sans text-sm text-[#7A2A1E]">
@@ -286,13 +333,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
           <button
             type="button"
-            onClick={() => {
-              void handleSubmit();
-            }}
+            onClick={() => { void handleSubmit(); }}
             disabled={saving}
             className="w-full rounded-xl bg-[#0F1310] px-6 py-4 font-sans text-base font-semibold text-[#F2EAD8] transition-colors duration-200 hover:bg-[#C28840] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? "Setting your table..." : "Start saving"}
+            {saving
+              ? "Saving..."
+              : isSettingsMode
+                ? "Save changes"
+                : "Start saving"}
           </button>
         </div>
       </div>

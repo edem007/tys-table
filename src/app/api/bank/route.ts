@@ -9,11 +9,13 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getActiveFund,
   getDepositsForFund,
+  getPreferences,
   addDeposit,
   createFund,
   computeBalanceFromDeposits,
 } from "@/lib/supabase/queries";
-import { COOK_NIGHT_DEPOSIT, errorMessage } from "@/lib/bank-api";
+import { computeCookNightDeposit } from "@/lib/preferences";
+import { errorMessage } from "@/lib/bank-api";
 
 export const dynamic = "force-dynamic";
 
@@ -100,10 +102,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "dish is required" }, { status: 400 });
     }
 
-    const amount =
-      typeof body.amount === "number" && Number.isFinite(body.amount)
-        ? body.amount
-        : COOK_NIGHT_DEPOSIT;
+    // Calculate deposit from user's preferences (budget + dine-out nights + party size)
+    const prefs = await getPreferences(supabase, user.id);
+    const amount = computeCookNightDeposit(prefs);
 
     let fund = await getActiveFund(supabase, user.id);
     if (!fund) {

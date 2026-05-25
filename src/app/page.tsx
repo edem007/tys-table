@@ -118,6 +118,13 @@ export default function Home() {
   const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro">("free");
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [depositAmount, setDepositAmount] = useState(16);
+  const [loadedPrefs, setLoadedPrefs] = useState<{
+    name?: string;
+    cuisines?: string[];
+    monthlyBudget?: number;
+    cookNights?: number;
+    partySize?: number;
+  } | null>(null);
   const dishFieldRef = useRef<HTMLInputElement>(null);
   const fundNameInputRef = useRef<HTMLInputElement>(null);
   const targetAmountInputRef = useRef<HTMLInputElement>(null);
@@ -262,6 +269,10 @@ export default function Home() {
         const data = (await res.json()) as {
           onboarded?: boolean;
           name?: string;
+          cuisines?: string[];
+          monthlyBudget?: number;
+          cookNights?: number;
+          partySize?: number;
           subscription_tier?: "free" | "pro";
           depositAmount?: number;
         };
@@ -270,6 +281,13 @@ export default function Home() {
         if (data.name) setUserName(data.name);
         if (data.subscription_tier) setSubscriptionTier(data.subscription_tier);
         if (data.depositAmount) setDepositAmount(data.depositAmount);
+        setLoadedPrefs({
+          name: data.name,
+          cuisines: data.cuisines,
+          monthlyBudget: data.monthlyBudget,
+          cookNights: data.cookNights,
+          partySize: data.partySize,
+        });
       } catch (err) {
         console.error(err);
       }
@@ -589,6 +607,8 @@ export default function Home() {
     <>
       {showOnboarding ? (
         <Onboarding
+          initialValues={loadedPrefs ?? undefined}
+          onClose={loadedPrefs ? () => setShowOnboarding(false) : undefined}
           onComplete={(prefs) => {
             setShowOnboarding(false);
             if (prefs.name) setUserName(prefs.name);
@@ -628,7 +648,7 @@ export default function Home() {
                 <div className="absolute right-0 top-10 z-50 min-w-[180px] rounded-xl border border-[#D9CDB0] bg-[#F2EAD8] p-2 shadow-lg">
                   {userName ? (
                     <div className="flex items-center gap-2 px-3 py-1.5">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                      <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                         {userName}
                       </p>
                       {subscriptionTier === "pro" ? (
@@ -638,6 +658,16 @@ export default function Home() {
                       ) : null}
                     </div>
                   ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      setShowOnboarding(true);
+                    }}
+                    className="w-full rounded-lg px-3 py-2 text-left font-sans text-sm text-[#0F1310]/75 transition-colors hover:bg-[#0F1310]/5"
+                  >
+                    Settings
+                  </button>
                   {subscriptionTier === "free" ? (
                     <button
                       type="button"
@@ -685,14 +715,14 @@ export default function Home() {
             className="mb-10 rounded-lg border border-[#C28840]/40 bg-[#C28840]/8 px-5 py-5 text-left [animation:celebration-fade-in_0.6s_ease-out_forwards]"
           >
             <div className="flex items-start justify-between gap-4">
-              <p className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-[#C28840]">
+              <p className="font-mono text-xs font-medium uppercase tracking-[0.2em] text-[#C28840]">
                 Tonight&apos;s Pick
               </p>
               <button
                 type="button"
                 onClick={() => setDailyDismissed(true)}
                 aria-label="Dismiss tonight's suggestion"
-                className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/45 transition-colors hover:text-[#7A2A1E]"
+                className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/60 transition-colors hover:text-[#7A2A1E]"
               >
                 Dismiss
               </button>
@@ -708,7 +738,7 @@ export default function Home() {
                 <p className="mt-2 font-sans text-sm leading-relaxed text-[#0F1310]/75">
                   {dailySuggestion.description}
                 </p>
-                <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+                <p className="mt-3 font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/70">
                   {dailySuggestion.type === "cook"
                     ? `Est. groceries ${formatUsd(dailySuggestion.estimatedCost)}`
                     : `Est. ${formatUsd(dailySuggestion.estimatedCost)}`}
@@ -933,7 +963,7 @@ export default function Home() {
                 </p>
                 {suggestion.type === "dine_out" && suggestion.homeAlternative ? (
                   <div className="mt-4 rounded-md border border-[#D9CDB0] bg-[#F2EAD8] p-3">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/45">
+                    <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/60">
                       Or cook it at home
                     </p>
                     <div className="mt-2 flex items-baseline justify-between gap-3">
@@ -957,7 +987,7 @@ export default function Home() {
                     ) : null}
                   </div>
                 ) : null}
-                <p className="mt-3 font-serif text-sm font-normal italic text-[#0F1310]/55">
+                <p className="mt-3 font-serif text-sm font-normal italic text-[#0F1310]/70">
                   {suggestion.reason}
                 </p>
               </div>
@@ -976,7 +1006,7 @@ export default function Home() {
 
         <section className="mt-8 w-full text-left min-[600px]:mt-10">
           {ledgerDeposits.length === 0 ? (
-            <p className="text-center font-sans text-sm text-[#0F1310]/55">
+            <p className="text-center font-sans text-sm text-[#0F1310]/70">
               No cook nights yet. Tonight&apos;s the night.
             </p>
           ) : (
@@ -985,7 +1015,7 @@ export default function Home() {
                 {visibleLedger.map((d) => (
                   <li key={d.id} className="flex items-start justify-between gap-4 py-4">
                     <div className="min-w-0 flex-1">
-                      <p className="font-sans text-sm text-[#0F1310]/55">
+                      <p className="font-sans text-sm text-[#0F1310]/70">
                         {formatMonthDay(d.date)}
                       </p>
                       <p
@@ -998,7 +1028,7 @@ export default function Home() {
                     </div>
                     <p
                       className={`shrink-0 pt-0.5 font-mono text-sm tabular-nums ${
-                        d.amount < 0 ? "text-[#0F1310]/55" : "text-[#1F4D3A]"
+                        d.amount < 0 ? "text-[#0F1310]/70" : "text-[#1F4D3A]"
                       }`}
                     >
                       {d.amount < 0 ? formatUsd(d.amount) : formatPlusUsd(d.amount)}
@@ -1029,14 +1059,14 @@ export default function Home() {
               <h2 className="font-serif text-xl font-normal italic text-[#0F1310]">
                 Insights
               </h2>
-              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0F1310]/45">
+              <span className="font-mono text-xs uppercase tracking-[0.18em] text-[#0F1310]/60">
                 Your Cooking
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-[#0F1310]/10 px-4 py-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                   Cook Nights
                 </p>
                 <p className="mt-1 font-serif text-3xl font-normal text-[#0F1310]">
@@ -1044,7 +1074,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="rounded-lg border border-[#0F1310]/10 px-4 py-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                   Total Banked
                 </p>
                 <p className="mt-1 font-serif text-3xl font-normal text-[#1F4D3A]">
@@ -1055,7 +1085,7 @@ export default function Home() {
 
             {topDishes.length > 0 ? (
               <div className="mt-4">
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                   Most Cooked
                 </p>
                 <ul className="mt-2 space-y-1.5">
@@ -1067,7 +1097,7 @@ export default function Home() {
                       <span className="min-w-0 truncate font-serif text-base italic text-[#0F1310]">
                         {d.label}
                       </span>
-                      <span className="shrink-0 font-mono text-xs text-[#0F1310]/55">
+                      <span className="shrink-0 font-mono text-xs text-[#0F1310]/70">
                         {d.count}×
                       </span>
                     </li>
@@ -1078,7 +1108,7 @@ export default function Home() {
 
             {monthlyCookNights.length > 1 ? (
               <div className="mt-5">
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                   Cook Nights by Month
                 </p>
                 <div className="mt-3 flex items-end justify-between gap-2">
@@ -1087,7 +1117,7 @@ export default function Home() {
                       key={m.month}
                       className="flex flex-1 flex-col items-center gap-1.5"
                     >
-                      <span className="font-mono text-[10px] text-[#0F1310]/55">
+                      <span className="font-mono text-xs text-[#0F1310]/70">
                         {m.count}
                       </span>
                       <div className="flex h-20 w-full items-end">
@@ -1096,7 +1126,7 @@ export default function Home() {
                           style={{ height: `${Math.max(m.pct, 6)}%` }}
                         />
                       </div>
-                      <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#0F1310]/50">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#0F1310]/65">
                         {m.label}
                       </span>
                     </div>
@@ -1112,7 +1142,7 @@ export default function Home() {
             <h2 className="font-serif text-xl font-normal italic text-[#0F1310]">
               This Week in Dallas
             </h2>
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0F1310]/45">
+            <span className="font-mono text-xs uppercase tracking-[0.18em] text-[#0F1310]/60">
               Curated for Ty
             </span>
           </div>
@@ -1127,7 +1157,7 @@ export default function Home() {
               ))}
             </div>
           ) : dallasFeed.length === 0 ? (
-            <p className="font-sans text-sm text-[#0F1310]/55">
+            <p className="font-sans text-sm text-[#0F1310]/70">
               No picks just yet — check back this evening.
             </p>
           ) : (
@@ -1138,7 +1168,7 @@ export default function Home() {
                   className="rounded-lg border border-[#0F1310]/10 bg-[#F2EAD8] px-5 py-4"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#C28840]">
+                    <span className="font-mono text-xs uppercase tracking-[0.18em] text-[#C28840]">
                       {item.category === "restaurant"
                         ? "Restaurant"
                         : item.category === "nightlife"
@@ -1146,12 +1176,12 @@ export default function Home() {
                           : "Event"}
                     </span>
                     {item.rating !== undefined ? (
-                      <span className="font-mono text-[10px] tracking-[0.08em] text-[#1F4D3A]">
+                      <span className="font-mono text-xs tracking-[0.08em] text-[#1F4D3A]">
                         ★ {item.rating.toFixed(1)}
                       </span>
                     ) : null}
                     {item.priceRange ? (
-                      <span className="font-mono text-[10px] tracking-[0.08em] text-[#0F1310]/45">
+                      <span className="font-mono text-xs tracking-[0.08em] text-[#0F1310]/60">
                         {item.priceRange}
                       </span>
                     ) : null}
@@ -1159,7 +1189,7 @@ export default function Home() {
                   <p className="mt-1.5 font-serif text-lg font-normal italic leading-snug text-[#0F1310]">
                     {item.name}
                   </p>
-                  <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#0F1310]/50">
+                  <p className="mt-0.5 font-mono text-xs uppercase tracking-[0.14em] text-[#0F1310]/65">
                     {item.kind}
                     {item.neighborhood ? ` · ${item.neighborhood}` : ""}
                     {item.date ? ` · ${formatMonthDay(item.date)}` : ""}
@@ -1181,7 +1211,7 @@ export default function Home() {
             <h2 className="font-serif text-xl font-normal italic text-[#0F1310]">
               Weekly Brief
             </h2>
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0F1310]/45">
+            <span className="font-mono text-xs uppercase tracking-[0.18em] text-[#0F1310]/60">
               Every Sunday
             </span>
           </div>
@@ -1208,7 +1238,7 @@ export default function Home() {
           ) : weeklySummary ? (
             <div className="space-y-6 [animation:celebration-fade-in_0.6s_ease-out_forwards]">
               <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#C28840]">
+                <p className="font-mono text-xs uppercase tracking-[0.18em] text-[#C28840]">
                   This Week&apos;s Theme
                 </p>
                 <p className="mt-1 font-serif text-2xl font-normal italic text-[#0F1310]">
@@ -1217,7 +1247,7 @@ export default function Home() {
               </div>
 
               <div className="rounded-lg border border-[#0F1310]/10 px-4 py-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                   Fund Status
                 </p>
                 <p className="mt-1 font-serif text-lg text-[#0F1310]">
@@ -1233,7 +1263,7 @@ export default function Home() {
 
               {weeklySummary.restaurantPicks.length > 0 ? (
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                  <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                     Top Picks
                   </p>
                   <ul className="mt-2 space-y-3">
@@ -1244,12 +1274,12 @@ export default function Home() {
                             {p.name}
                           </span>
                           {p.rating !== undefined ? (
-                            <span className="font-mono text-[10px] text-[#1F4D3A]">
+                            <span className="font-mono text-xs text-[#1F4D3A]">
                               ★ {p.rating.toFixed(1)}
                             </span>
                           ) : null}
                           {p.priceRange ? (
-                            <span className="font-mono text-[10px] text-[#0F1310]/45">
+                            <span className="font-mono text-xs text-[#0F1310]/60">
                               {p.priceRange}
                             </span>
                           ) : null}
@@ -1264,7 +1294,7 @@ export default function Home() {
               ) : null}
 
               <div className="rounded-lg border border-[#D9CDB0] bg-[#F2EAD8] px-4 py-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                   Cook vs. Dine Out
                 </p>
                 <div className="mt-2 flex items-baseline justify-between gap-3 font-mono text-sm tabular-nums">
@@ -1290,7 +1320,7 @@ export default function Home() {
 
               {weeklySummary.entertainment.length > 0 ? (
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                  <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                     Entertainment
                   </p>
                   <ul className="mt-2 space-y-2">
@@ -1299,7 +1329,7 @@ export default function Home() {
                         <span className="font-serif italic text-[#0F1310]">
                           {e.name}
                         </span>
-                        <span className="text-[#0F1310]/55">
+                        <span className="text-[#0F1310]/70">
                           {" "}
                           — {e.kind}
                           {e.date ? ` · ${formatMonthDay(e.date)}` : ""}
@@ -1317,7 +1347,7 @@ export default function Home() {
 
               {weeklySummary.plan.length > 0 ? (
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/50">
+                  <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
                     Your Week
                   </p>
                   <ul className="mt-2 space-y-1.5">
@@ -1342,7 +1372,7 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            <p className="font-sans text-sm text-[#0F1310]/55">
+            <p className="font-sans text-sm text-[#0F1310]/70">
               Couldn&apos;t load the brief. Try again later.
             </p>
           )}
@@ -1433,7 +1463,7 @@ export default function Home() {
                 >
                   What did you cook tonight?
                 </h2>
-                <p className="mt-1.5 text-center font-mono text-[10px] uppercase tracking-[0.16em] text-[#1F4D3A]">
+                <p className="mt-1.5 text-center font-mono text-xs uppercase tracking-[0.16em] text-[#1F4D3A]">
                   You&apos;ll bank +${depositAmount} tonight
                 </p>
                 <label htmlFor="cook-dish-input" className="sr-only">

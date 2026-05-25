@@ -64,8 +64,12 @@ export default function AuthPage() {
       });
       if (error) {
         setMessage({ type: "error", text: error.message });
+        setLoading(false);
+      } else {
+        // Redirect to app — don't clear loading so the button stays disabled
+        window.location.href = "/";
       }
-      // On success, middleware will redirect to /
+      return;
     }
 
     setLoading(false);
@@ -76,7 +80,7 @@ export default function AuthPage() {
       <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="mb-8 text-center">
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#C28840]">
+          <p className="font-mono text-xs uppercase tracking-[0.22em] text-[#C28840]">
             Welcome to
           </p>
           <h1 className="mt-1 font-serif text-4xl font-medium italic text-[#0F1310]">
@@ -121,7 +125,7 @@ export default function AuthPage() {
         {/* Divider */}
         <div className="my-6 flex items-center gap-3">
           <div className="h-px flex-1 bg-[#D9CDB0]" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/40">
+          <span className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/40">
             or
           </span>
           <div className="h-px flex-1 bg-[#D9CDB0]" />
@@ -130,7 +134,7 @@ export default function AuthPage() {
         {/* Email / Password Form */}
         <form onSubmit={(e) => void handleEmailAuth(e)} className="space-y-4">
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+            <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/70">
               Email
             </label>
             <input
@@ -144,7 +148,7 @@ export default function AuthPage() {
           </div>
 
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#0F1310]/55">
+            <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/70">
               Password
             </label>
             <input
