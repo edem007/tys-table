@@ -55,6 +55,7 @@ export type Database = {
           cook_nights: number;
           dine_out_nights: number;
           party_size: number;
+          allergies: string[];
           onboarded: boolean;
           updated_at: string;
         };
@@ -65,6 +66,7 @@ export type Database = {
           cook_nights?: number;
           dine_out_nights?: number;
           party_size?: number;
+          allergies?: string[];
           onboarded?: boolean;
           updated_at?: string;
         };
@@ -74,6 +76,7 @@ export type Database = {
           cook_nights?: number;
           dine_out_nights?: number;
           party_size?: number;
+          allergies?: string[];
           onboarded?: boolean;
           updated_at?: string;
         };
@@ -160,6 +163,58 @@ export type Database = {
         };
         Update: {
           was_accepted?: boolean | null;
+        };
+      };
+      weekly_plans: {
+        Row: {
+          id: string;
+          user_id: string;
+          week_start: string;
+          saved_so_far: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          week_start: string;
+          saved_so_far?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          saved_so_far?: number;
+          updated_at?: string;
+        };
+      };
+      plan_days: {
+        Row: {
+          id: string;
+          weekly_plan_id: string;
+          day_date: string;
+          day_type: "cook" | "eat-out";
+          recipe: Json | null;
+          restaurant_options: Json | null;
+          chosen_restaurant_id: string | null;
+          completed: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          weekly_plan_id: string;
+          day_date: string;
+          day_type: "cook" | "eat-out";
+          recipe?: Json | null;
+          restaurant_options?: Json | null;
+          chosen_restaurant_id?: string | null;
+          completed?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          recipe?: Json | null;
+          restaurant_options?: Json | null;
+          chosen_restaurant_id?: string | null;
+          completed?: boolean;
         };
       };
     };

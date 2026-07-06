@@ -10,6 +10,8 @@ export type Preferences = {
   dineOutNights: number;
   /** Number of people cooking/dining together (1, 2, 3–4, 5+). */
   partySize: number;
+  /** Food allergies to hard-filter out of recipe and restaurant matches. */
+  allergies: string[];
   /** True once the onboarding wizard has been completed. */
   onboarded: boolean;
 };
@@ -21,8 +23,21 @@ export const DEFAULT_PREFERENCES: Preferences = {
   cookNights: 4,
   dineOutNights: 3,
   partySize: 2,
+  allergies: [],
   onboarded: false,
 };
+
+export const ALLERGEN_OPTIONS = [
+  "peanuts",
+  "tree nuts",
+  "shellfish",
+  "dairy",
+  "gluten",
+  "eggs",
+  "soy",
+  "fish",
+  "sesame",
+] as const;
 
 export const CUISINE_OPTIONS = [
   "soul food",
@@ -73,6 +88,13 @@ export function normalizePreferences(raw: unknown): Preferences {
       ? Math.min(20, Math.max(1, Math.round(o.partySize)))
       : DEFAULT_PREFERENCES.partySize;
 
+  const allergies = Array.isArray(o.allergies)
+    ? o.allergies
+        .filter((a): a is string => typeof a === "string" && a.trim().length > 0)
+        .map((a) => a.trim().toLowerCase().slice(0, 20))
+        .slice(0, 9)
+    : DEFAULT_PREFERENCES.allergies;
+
   return {
     name,
     cuisines: cuisines.length > 0 ? cuisines : DEFAULT_PREFERENCES.cuisines,
@@ -80,6 +102,7 @@ export function normalizePreferences(raw: unknown): Preferences {
     cookNights,
     dineOutNights,
     partySize,
+    allergies,
     onboarded: o.onboarded === true,
   };
 }
@@ -121,27 +144,4 @@ export function computeCookNightDeposit(prefs: {
 
   // Round to nearest dollar, minimum $5
   return Math.max(5, Math.round(savings));
-}
-
-/** Join cuisines into a natural-language list: "a, b, and c". */
-export function cuisineList(cuisines: string[]): string {
-  const list = cuisines.length > 0 ? cuisines : DEFAULT_PREFERENCES.cuisines;
-  if (list.length === 1) return list[0];
-  if (list.length === 2) return `${list[0]} and ${list[1]}`;
-  return `${list.slice(0, -1).join(", ")}, and ${list[list.length - 1]}`;
-}
-
-/**
- * Build the shared prompt fragment describing the person and their tastes,
- * used by the suggestion, feed, and weekly-summary generators.
- */
-export function buildTasteProfile(prefs: Preferences): string {
-  const partySizeLabel =
-    prefs.partySize === 1 ? "cooking solo"
-    : prefs.partySize === 2 ? "cooking for two"
-    : `cooking for ${prefs.partySize}`;
-
-  return `${prefs.name}'s tastes: ${cuisineList(
-    prefs.cuisines,
-  )} cuisines. ${prefs.name} loves lounge culture, intimate vibes, and unique dining experiences — not chains or generic picks. Monthly dining budget ~$${prefs.monthlyBudget}, planning ${prefs.cookNights} cook nights and ${prefs.dineOutNights} dine-out nights per week, ${partySizeLabel}.`;
 }

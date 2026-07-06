@@ -57,6 +57,7 @@ create table if not exists user_preferences (
   monthly_budget  integer not null default 400 check (monthly_budget >= 0),
   cook_nights     integer not null default 4 check (cook_nights between 0 and 7),
   dine_out_nights integer not null default 3 check (dine_out_nights between 0 and 7),
+  party_size      integer not null default 2 check (party_size between 1 and 20),
   onboarded       boolean not null default false,
   updated_at      timestamptz not null default now()
 );

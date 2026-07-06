@@ -61,6 +61,8 @@ export async function PATCH(request: Request) {
       monthlyBudget: merged.monthlyBudget,
       cookNights: merged.cookNights,
       dineOutNights: merged.dineOutNights,
+      partySize: merged.partySize,
+      allergies: merged.allergies,
       onboarded: merged.onboarded,
     });
 

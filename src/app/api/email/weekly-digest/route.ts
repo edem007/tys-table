@@ -1,37 +1,27 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { readDallasFeed } from "@/lib/dallas-feed-redis";
-import { readWeeklySummary } from "@/lib/weekly-summary-redis";
+import { getWeeklyPlan } from "@/lib/supabase/queries";
+import { summarizeWeeklyPlan, type PlanDayRow } from "@/lib/weekly-summary";
+import { currentWeekStart } from "@/lib/plan-week";
 import { sendWeeklyDigest } from "@/lib/email";
-import { computeBalanceFromDeposits } from "@/lib/supabase/queries";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? "https://prince-ai-projects-murex.vercel.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://tystable.app";
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return "An unexpected error occurred";
 }
 
-// Returns deposits from the last 7 days
-function depositsThisWeek(deposits: { date: string; amount: number }[]) {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 7);
-  const cutoffStr = cutoff.toISOString().split("T")[0];
-  return deposits.filter((d) => d.date >= cutoffStr && d.amount > 0);
-}
-
 /**
  * POST /api/email/weekly-digest
- * Sends the weekly digest to all onboarded users.
- * Protected by CRON_SECRET — called by the Sunday cron job.
+ * Sends each onboarded user their own weekly recap — cook nights completed,
+ * $ saved, restaurants chosen. Protected by CRON_SECRET, called Sunday.
  */
 export async function POST(request: Request) {
   try {
-    // Require CRON_SECRET
     const cronSecret = process.env.CRON_SECRET;
     if (cronSecret) {
       const auth = request.headers.get("authorization");
@@ -41,8 +31,8 @@ export async function POST(request: Request) {
     }
 
     const supabase = createAdminClient();
+    const weekStart = currentWeekStart();
 
-    // Get all onboarded users with their email addresses
     const { data: onboardedUsers, error: prefsError } = await supabase
       .from("user_preferences")
       .select("user_id")
@@ -53,27 +43,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, sent: 0, message: "No onboarded users" });
     }
 
-    // Get auth emails via admin API
-    const { data: authUsers, error: authError } =
-      await supabase.auth.admin.listUsers();
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
     if (authError) throw new Error(authError.message);
-
-    const emailMap = new Map(
-      authUsers.users.map((u) => [u.id, u.email ?? ""]),
-    );
-
-    // Get shared weekly summary + Dallas feed (same for all users)
-    const [weeklySummaryEntry, feedEntry] = await Promise.all([
-      readWeeklySummary(),
-      readDallasFeed(),
-    ]);
-
-    const weeklySummaryText = weeklySummaryEntry?.summary?.headline ?? "";
-    const dallasFeedItems = (feedEntry?.items ?? []).map((item) => ({
-      title: item.name,
-      date: item.date,
-      description: item.description,
-    }));
+    const emailMap = new Map(authUsers.users.map((u) => [u.id, u.email ?? ""]));
 
     let sent = 0;
     let failed = 0;
@@ -84,60 +56,34 @@ export async function POST(request: Request) {
         const email = emailMap.get(user_id);
         if (!email) continue;
 
-        // Get profile + active fund + deposits
-        const [profileRes, fundRes] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select("display_name")
-            .eq("id", user_id)
-            .single(),
-          supabase
-            .from("funds")
-            .select("id, name, target_amount")
-            .eq("user_id", user_id)
-            .eq("is_active", true)
-            .eq("cashed_out", false)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
+        const [profileRes, planResult] = await Promise.all([
+          supabase.from("profiles").select("display_name").eq("id", user_id).single(),
+          getWeeklyPlan(supabase, user_id, weekStart),
         ]);
 
+        if (!planResult) continue; // no plan generated this week — nothing to summarize
+
         const userName = profileRes.data?.display_name || "there";
-        const fund = fundRes.data;
-        if (!fund) continue;
-
-        const { data: deposits } = await supabase
-          .from("deposits")
-          .select("date, amount")
-          .eq("fund_id", fund.id)
-          .eq("user_id", user_id)
-          .order("date", { ascending: false });
-
-        const allDeposits = deposits ?? [];
-        const balance = computeBalanceFromDeposits(allDeposits);
-        const weekDeposits = depositsThisWeek(allDeposits);
-        const savedThisWeek = weekDeposits.reduce((s, d) => s + d.amount, 0);
-        const depositCount = weekDeposits.length;
+        const summary = summarizeWeeklyPlan(
+          planResult.days as unknown as PlanDayRow[],
+          planResult.plan.saved_so_far,
+        );
 
         await sendWeeklyDigest({
           userName,
           email,
-          fundName: fund.name,
-          balance,
-          targetAmount: fund.target_amount,
-          depositCount,
-          savedThisWeek,
-          weeklySummaryText,
-          dallasFeedItems,
+          headline: summary.headline,
+          cookNightsCompleted: summary.cookNightsCompleted,
+          cookNightsPlanned: summary.cookNightsPlanned,
+          savedThisWeek: summary.savedThisWeek,
+          restaurantsChosen: summary.restaurantsChosen,
           appUrl: APP_URL,
         });
 
         sent++;
       } catch (userErr) {
         failed++;
-        errors.push(
-          `${user_id}: ${userErr instanceof Error ? userErr.message : "unknown"}`,
-        );
+        errors.push(`${user_id}: ${userErr instanceof Error ? userErr.message : "unknown"}`);
       }
     }
 
