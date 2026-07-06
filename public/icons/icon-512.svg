@@ -1,13 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Ty's Table">
-  <rect width="512" height="512" fill="#F2EAD8" />
+  <rect width="512" height="512" fill="#FBF1EC" />
   <text
     x="256"
-    y="292"
+    y="300"
     text-anchor="middle"
     font-family="Georgia, serif"
-    font-size="200"
+    font-size="220"
     font-style="italic"
-    fill="#7A2A1E"
+    font-weight="600"
+    fill="#2E2A27"
   >
     T
   </text>
