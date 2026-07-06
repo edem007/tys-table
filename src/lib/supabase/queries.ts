@@ -328,19 +328,22 @@ export async function createWeeklyPlan(
 
   if (planError) throw new Error(`createWeeklyPlan: ${planError.message}`);
 
-  // Clear any existing days for this plan (re-generating the week)
-  await supabase.from("plan_days").delete().eq("weekly_plan_id", plan.id);
-
+  // Upsert (not delete-then-insert) so concurrent regenerations for the same
+  // week — e.g. an overlapping page reload — can't race into a unique-
+  // constraint violation on (weekly_plan_id, day_date).
   const { data: insertedDays, error: daysError } = await supabase
     .from("plan_days")
-    .insert(
+    .upsert(
       days.map((d) => ({
         weekly_plan_id: plan.id,
         day_date: d.date,
         day_type: d.dayType,
         recipe: d.recipe ?? null,
         restaurant_options: d.restaurantOptions ?? null,
+        chosen_restaurant_id: null,
+        completed: false,
       })),
+      { onConflict: "weekly_plan_id,day_date" },
     )
     .select();
 

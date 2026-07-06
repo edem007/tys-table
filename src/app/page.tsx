@@ -102,7 +102,10 @@ export default function Home() {
     setIsGenerating(true);
     try {
       const res = await fetch("/api/weekly-plan", { method: "POST" });
-      if (!res.ok) throw new Error("Could not plan your week. Please try again.");
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || `Could not plan your week (${res.status}). Please try again.`);
+      }
       const data = (await res.json()) as { plan: WeeklyPlanRow; days: PlanDay[] };
       setPlan(data.plan);
       setDays(data.days);
