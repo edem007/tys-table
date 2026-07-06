@@ -75,6 +75,7 @@ export async function getPreferences(
     cookNights: p.cook_nights,
     dineOutNights: p.dine_out_nights,
     partySize: p.party_size ?? DEFAULT_PREFERENCES.partySize,
+    allergies: p.allergies ?? DEFAULT_PREFERENCES.allergies,
     onboarded: p.onboarded,
   };
 }
@@ -105,6 +106,7 @@ export async function upsertPreferences(
         dine_out_nights: prefs.dineOutNights,
       }),
       ...(prefs.partySize !== undefined && { party_size: prefs.partySize }),
+      ...(prefs.allergies !== undefined && { allergies: prefs.allergies }),
       ...(prefs.onboarded !== undefined && { onboarded: prefs.onboarded }),
     },
     { onConflict: "user_id" },
@@ -247,4 +249,152 @@ export function computeBalanceFromDeposits(
   deposits: { amount: number }[],
 ): number {
   return deposits.reduce((sum, d) => sum + d.amount, 0);
+}
+
+// ── Weekly Plans (meal planning + restaurant matching) ────────────
+
+export type PlanRecipe = {
+  id: string;
+  title: string;
+  cuisine: string;
+  image: string;
+  prepMinutes: number;
+  cookMinutes: number;
+  baseServings: number;
+  costPerServing: number;
+  ingredients: string[];
+  instructions: string[];
+};
+
+export type PlanRestaurantOption = {
+  id: string;
+  name: string;
+  cuisine: string;
+  rating: number;
+  priceTier: 1 | 2 | 3 | 4;
+  estCostPerPerson: number;
+  neighborhood: string;
+  image: string;
+  blurb: string;
+};
+
+export type NewPlanDay = {
+  date: string; // YYYY-MM-DD
+  dayType: "cook" | "eat-out";
+  recipe?: PlanRecipe;
+  restaurantOptions?: PlanRestaurantOption[];
+};
+
+export async function getWeeklyPlan(
+  supabase: Supabase,
+  userId: string,
+  weekStart: string,
+) {
+  const { data: plan, error: planError } = await supabase
+    .from("weekly_plans")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("week_start", weekStart)
+    .maybeSingle();
+
+  if (planError) throw new Error(`getWeeklyPlan: ${planError.message}`);
+  if (!plan) return null;
+
+  const { data: days, error: daysError } = await supabase
+    .from("plan_days")
+    .select("*")
+    .eq("weekly_plan_id", plan.id)
+    .order("day_date", { ascending: true });
+
+  if (daysError) throw new Error(`getWeeklyPlan days: ${daysError.message}`);
+
+  return { plan, days: days ?? [] };
+}
+
+export async function createWeeklyPlan(
+  supabase: Supabase,
+  userId: string,
+  weekStart: string,
+  days: NewPlanDay[],
+) {
+  const { data: plan, error: planError } = await supabase
+    .from("weekly_plans")
+    .upsert(
+      { user_id: userId, week_start: weekStart, saved_so_far: 0 },
+      { onConflict: "user_id,week_start" },
+    )
+    .select()
+    .single();
+
+  if (planError) throw new Error(`createWeeklyPlan: ${planError.message}`);
+
+  // Clear any existing days for this plan (re-generating the week)
+  await supabase.from("plan_days").delete().eq("weekly_plan_id", plan.id);
+
+  const { data: insertedDays, error: daysError } = await supabase
+    .from("plan_days")
+    .insert(
+      days.map((d) => ({
+        weekly_plan_id: plan.id,
+        day_date: d.date,
+        day_type: d.dayType,
+        recipe: d.recipe ?? null,
+        restaurant_options: d.restaurantOptions ?? null,
+      })),
+    )
+    .select();
+
+  if (daysError) throw new Error(`createWeeklyPlan days: ${daysError.message}`);
+
+  return { plan, days: insertedDays ?? [] };
+}
+
+/** Marks a cook-night plan day complete and adds the savings to the week's running total. */
+export async function markPlanDayCooked(
+  supabase: Supabase,
+  planDayId: string,
+  weeklyPlanId: string,
+  userId: string,
+  amountSaved: number,
+) {
+  const { error: dayError } = await supabase
+    .from("plan_days")
+    .update({ completed: true })
+    .eq("id", planDayId)
+    .eq("weekly_plan_id", weeklyPlanId);
+
+  if (dayError) throw new Error(`markPlanDayCooked: ${dayError.message}`);
+
+  const { data: plan, error: planReadError } = await supabase
+    .from("weekly_plans")
+    .select("saved_so_far")
+    .eq("id", weeklyPlanId)
+    .eq("user_id", userId)
+    .single();
+
+  if (planReadError) throw new Error(`markPlanDayCooked: ${planReadError.message}`);
+
+  const { error: planError } = await supabase
+    .from("weekly_plans")
+    .update({ saved_so_far: (plan?.saved_so_far ?? 0) + amountSaved })
+    .eq("id", weeklyPlanId)
+    .eq("user_id", userId);
+
+  if (planError) throw new Error(`markPlanDayCooked: ${planError.message}`);
+}
+
+/** Records which restaurant the user picked for an eat-out night. */
+export async function chooseRestaurantForDay(
+  supabase: Supabase,
+  planDayId: string,
+  weeklyPlanId: string,
+  restaurantId: string,
+) {
+  const { error } = await supabase
+    .from("plan_days")
+    .update({ chosen_restaurant_id: restaurantId, completed: true })
+    .eq("id", planDayId)
+    .eq("weekly_plan_id", weeklyPlanId);
+
+  if (error) throw new Error(`chooseRestaurantForDay: ${error.message}`);
 }

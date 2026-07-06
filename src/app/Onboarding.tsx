@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CUISINE_OPTIONS, computeCookNightDeposit, type Preferences } from "@/lib/preferences";
+import { ALLERGEN_OPTIONS, CUISINE_OPTIONS, computeCookNightDeposit, type Preferences } from "@/lib/preferences";
 
 type InitialValues = {
   name?: string;
@@ -9,8 +9,7 @@ type InitialValues = {
   monthlyBudget?: number;
   cookNights?: number;
   partySize?: number;
-  goalName?: string;
-  goalTarget?: number;
+  allergies?: string[];
 };
 
 type OnboardingProps = {
@@ -18,9 +17,6 @@ type OnboardingProps = {
   onClose?: () => void;          // present → settings mode (shows close button)
   initialValues?: InitialValues;
 };
-
-const MIN_TARGET = 20;
-const MAX_TARGET = 2000;
 
 const PARTY_SIZE_OPTIONS = [
   { label: "Just me", value: 1, emoji: "🧑" },
@@ -37,8 +33,7 @@ export default function Onboarding({ onComplete, onClose, initialValues }: Onboa
   const [budget, setBudget] = useState(String(initialValues?.monthlyBudget ?? 400));
   const [cookNights, setCookNights] = useState(initialValues?.cookNights ?? 4);
   const [partySize, setPartySize] = useState(initialValues?.partySize ?? 2);
-  const [goalName, setGoalName] = useState(initialValues?.goalName ?? "");
-  const [goalTarget, setGoalTarget] = useState(String(initialValues?.goalTarget ?? 120));
+  const [allergies, setAllergies] = useState<string[]>(initialValues?.allergies ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,10 +53,14 @@ export default function Onboarding({ onComplete, onClose, initialValues }: Onboa
     );
   }
 
+  function toggleAllergen(a: string) {
+    setAllergies((prev) =>
+      prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a],
+    );
+  }
+
   async function handleSubmit() {
     const trimmedName = name.trim();
-    const trimmedGoal = goalName.trim();
-    const target = parseInt(goalTarget.replace(/\D/g, ""), 10);
 
     if (!trimmedName) {
       setError("Please enter your name.");
@@ -70,17 +69,6 @@ export default function Onboarding({ onComplete, onClose, initialValues }: Onboa
     if (cuisines.length === 0) {
       setError("Pick at least one cuisine you love.");
       return;
-    }
-    if (!isSettingsMode) {
-      // Only require goal during fresh onboarding
-      if (!trimmedGoal) {
-        setError("Name your first savings goal.");
-        return;
-      }
-      if (!Number.isFinite(target) || target < MIN_TARGET || target > MAX_TARGET) {
-        setError(`Goal target must be between $${MIN_TARGET} and $${MAX_TARGET}.`);
-        return;
-      }
     }
 
     setSaving(true);
@@ -93,29 +81,15 @@ export default function Onboarding({ onComplete, onClose, initialValues }: Onboa
         cookNights,
         dineOutNights,
         partySize,
+        allergies,
         onboarded: true,
       };
 
-      const requests: Promise<Response>[] = [
-        fetch("/api/preferences", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(prefsBody),
-        }),
-      ];
-
-      // Only update the fund during fresh onboarding
-      if (!isSettingsMode && trimmedGoal) {
-        requests.push(
-          fetch("/api/fund", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fundName: trimmedGoal, targetAmount: target }),
-          }),
-        );
-      }
-
-      const [prefsRes] = await Promise.all(requests);
+      const prefsRes = await fetch("/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(prefsBody),
+      });
 
       if (!prefsRes.ok) {
         throw new Error("Could not save your preferences. Please try again.");
@@ -213,6 +187,35 @@ export default function Onboarding({ onComplete, onClose, initialValues }: Onboa
             </div>
           </div>
 
+          {/* Allergies */}
+          <div>
+            <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
+              Any food allergies?
+            </label>
+            <p className="mt-1 font-sans text-xs text-[#0F1310]/60">
+              We&apos;ll never surface a recipe or restaurant dish that contains these.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {ALLERGEN_OPTIONS.map((a) => {
+                const selected = allergies.includes(a);
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => toggleAllergen(a)}
+                    className={`rounded-full border px-3 py-1.5 font-sans text-sm capitalize transition-colors ${
+                      selected
+                        ? "border-[#7A2A1E] bg-[#7A2A1E] text-[#F2EAD8]"
+                        : "border-[#D9CDB0] text-[#0F1310]/75 hover:border-[#C28840]"
+                    }`}
+                  >
+                    {a}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Who's eating */}
           <div>
             <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
@@ -295,36 +298,6 @@ export default function Onboarding({ onComplete, onClose, initialValues }: Onboa
             </p>
           </div>
 
-          {/* First savings goal — only during fresh onboarding */}
-          {!isSettingsMode && (
-            <div className="rounded-lg border border-[#D9CDB0] p-4">
-              <label className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
-                Your first savings goal
-              </label>
-              <input
-                type="text"
-                value={goalName}
-                onChange={(e) => setGoalName(e.target.value.slice(0, 40))}
-                placeholder="e.g. Bishop Arts Dinner"
-                className="mt-2 w-full border-0 border-b border-[#D9CDB0] bg-transparent pb-1 font-serif text-base text-[#0F1310] outline-none focus:border-b-[#7A2A1E]"
-              />
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="font-mono text-xs uppercase tracking-[0.16em] text-[#0F1310]/65">
-                  Target $
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={goalTarget}
-                  onChange={(e) =>
-                    setGoalTarget(e.target.value.replace(/\D/g, "").slice(0, 4))
-                  }
-                  className="w-24 border-0 border-b border-[#D9CDB0] bg-transparent pb-1 font-serif text-base text-[#0F1310] outline-none focus:border-b-[#7A2A1E]"
-                />
-              </div>
-            </div>
-          )}
-
           {error ? (
             <p role="alert" className="font-sans text-sm text-[#7A2A1E]">
               {error}
@@ -341,7 +314,7 @@ export default function Onboarding({ onComplete, onClose, initialValues }: Onboa
               ? "Saving..."
               : isSettingsMode
                 ? "Save changes"
-                : "Start saving"}
+                : "See this week's plan"}
           </button>
         </div>
       </div>
