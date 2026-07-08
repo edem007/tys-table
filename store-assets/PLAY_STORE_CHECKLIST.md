@@ -50,8 +50,9 @@ Your data is yours — read our privacy policy at tystable.app/privacy.
 
 - App icon (512×512, no alpha): `store-assets/play-store-icon-512.png` ✅ ready
 - Feature graphic (1024×500): `store-assets/feature-graphic-1024x500.jpg` ✅ ready (basic draft — consider a designer pass before final submission)
-- Phone screenshots (min 2, 320–3840px, 16:9 to 9:16): **NOT YET CAPTURED** — take 2-3 on your
-  phone: the weekly plan view, a restaurant pick, and a recipe/cook-night view all look good.
+- Phone screenshots ✅ captured (2026-07-08) — weekly table view, cook-night recipe (x2), and
+  the settings/preferences panel. Upload these straight from your device to Play Console's
+  screenshot section; they don't need to live in this repo.
 
 ## 5. Categorization
 
