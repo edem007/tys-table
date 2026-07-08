@@ -81,10 +81,10 @@ export default function PrivacyPage() {
         the app. To request deletion of your account and associated data, or
         to ask any question about this policy, contact us at{" "}
         <a
-          href="mailto:privacy@tystable.app"
+          href="mailto:info@pjandtinc.com"
           className="text-[#E5A78D] underline"
         >
-          privacy@tystable.app
+          info@pjandtinc.com
         </a>
         .
       </p>
