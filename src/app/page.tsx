@@ -56,6 +56,13 @@ export default function Home() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro">("free");
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [isNativeApp, setIsNativeApp] = useState(false);
+
+  useEffect(() => {
+    import("@capacitor/core").then(({ Capacitor }) => {
+      setIsNativeApp(Capacitor.getPlatform() !== "web");
+    });
+  }, []);
 
   async function handleSignOut() {
     const { createClient } = await import("@/lib/supabase/client");
@@ -264,7 +271,7 @@ export default function Home() {
                   >
                     Settings
                   </button>
-                  {subscriptionTier === "free" ? (
+                  {subscriptionTier === "free" && !isNativeApp ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -276,6 +283,10 @@ export default function Home() {
                     >
                       {isUpgrading ? "Redirecting…" : "Upgrade to Pro"}
                     </button>
+                  ) : subscriptionTier === "free" ? (
+                    <p className="px-3 py-2 text-xs text-[#8A8178]">
+                      Upgrade to Pro at tystable.app
+                    </p>
                   ) : (
                     <button
                       type="button"
