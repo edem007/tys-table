@@ -6,6 +6,7 @@ const PUBLIC_ROUTES = [
   "/auth",
   "/auth/callback",
   "/auth/confirm",
+  "/privacy",             // Privacy policy — must be reachable by app store reviewers, no login
   "/api/cron",           // Vercel cron jobs — protected by CRON_SECRET
   "/api/email",          // Email routes — protected by CRON_SECRET
   "/api/stripe/webhook", // Stripe webhooks — protected by Stripe signature

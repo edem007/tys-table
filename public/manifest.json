@@ -1,29 +1,53 @@
 {
   "name": "Ty's Table",
   "short_name": "Ty's Table",
-  "description": "Ty's Table — Savings Bank",
+  "description": "Cook more. Save smart. Dine like you mean it.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F2EAD8",
-  "theme_color": "#F2EAD8",
+  "background_color": "#FDF9F7",
+  "theme_color": "#FDF9F7",
   "icons": [
     {
-      "src": "/icons/icon-192.svg",
+      "src": "/icons/icon-48.webp",
+      "type": "image/png",
+      "sizes": "48x48",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-72.webp",
+      "type": "image/png",
+      "sizes": "72x72",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-96.webp",
+      "type": "image/png",
+      "sizes": "96x96",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-128.webp",
+      "type": "image/png",
+      "sizes": "128x128",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-192.webp",
+      "type": "image/png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-512.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "src": "/icons/icon-256.webp",
+      "type": "image/png",
+      "sizes": "256x256",
+      "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-512.svg",
+      "src": "/icons/icon-512.webp",
+      "type": "image/png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ]
 }
