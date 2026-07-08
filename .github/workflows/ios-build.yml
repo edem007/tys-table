@@ -1,0 +1,71 @@
+name: iOS build check
+
+# Verifies the iOS project compiles on a macOS runner — no Mac needed locally.
+# This is a SIMULATOR build (no code signing), so it works today even without
+# an Apple Developer account. It catches Xcode project breakage early.
+#
+# Once you have an Apple Developer account, extend this workflow to sign and
+# upload to TestFlight — see the commented section at the bottom for the shape
+# of what that looks like (fastlane match + pilot, or App Store Connect API).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - "capacitor.config.ts"
+  workflow_dispatch: {}
+
+jobs:
+  build-simulator:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+
+      - name: Build for iOS Simulator (no signing required)
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            build
+
+# ---------------------------------------------------------------------------
+# FUTURE: signed build + TestFlight upload, once you have an Apple Developer
+# account. Rough shape (needs real values as GitHub Actions secrets — never
+# commit these):
+#
+#   - APPLE_TEAM_ID
+#   - APP_STORE_CONNECT_KEY_ID / ISSUER_ID / PRIVATE_KEY (App Store Connect API key)
+#   - MATCH_GIT_URL + MATCH_PASSWORD (if using fastlane match for cert/profile sync)
+#
+# Typical steps to add:
+#   1. `bundle exec fastlane match appstore` to install signing cert + provisioning
+#      profile from a private git repo (fastlane match manages this without ever
+#      needing a Mac to generate the cert yourself).
+#   2. xcodebuild archive with the signed profile:
+#        xcodebuild -project ios/App/App.xcodeproj -scheme App \
+#          -sdk iphoneos -configuration Release archive -archivePath build/App.xcarchive
+#   3. xcodebuild -exportArchive to produce an .ipa.
+#   4. `xcrun altool --upload-app` or `fastlane pilot upload` to push to TestFlight.
+#
+# This whole flow can run unattended in CI on every push to main — you would
+# only need a Mac if you want to debug something interactively.
+# ---------------------------------------------------------------------------
