@@ -54,49 +54,12 @@ export default function Home() {
   const [loadedPrefs, setLoadedPrefs] = useState<LoadedPrefs | null>(null);
   const [userName, setUserName] = useState("");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro">("free");
-  const [isUpgrading, setIsUpgrading] = useState(false);
-  const [isNativeApp, setIsNativeApp] = useState(false);
-
-  useEffect(() => {
-    import("@capacitor/core").then(({ Capacitor }) => {
-      setIsNativeApp(Capacitor.getPlatform() !== "web");
-    });
-  }, []);
 
   async function handleSignOut() {
     const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     await supabase.auth.signOut();
     window.location.href = "/auth";
-  }
-
-  async function handleUpgrade() {
-    setIsUpgrading(true);
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (data.url) window.location.href = data.url;
-      else setErrorMessage(data.error ?? "Upgrade failed. Try again.");
-    } catch {
-      setErrorMessage("Upgrade failed. Try again.");
-    } finally {
-      setIsUpgrading(false);
-    }
-  }
-
-  async function handleManageBilling() {
-    try {
-      const res = await fetch("/api/stripe/portal", { method: "POST" });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (data.url) window.location.href = data.url;
-    } catch {
-      setErrorMessage("Could not open billing portal.");
-    }
   }
 
   async function loadPlan() {
@@ -140,7 +103,6 @@ export default function Home() {
           cookNights?: number;
           partySize?: number;
           allergies?: string[];
-          subscription_tier?: "free" | "pro";
         };
         if (cancelled) return;
         if (!data.onboarded) {
@@ -149,7 +111,6 @@ export default function Home() {
           return;
         }
         if (data.name) setUserName(data.name);
-        if (data.subscription_tier) setSubscriptionTier(data.subscription_tier);
         setLoadedPrefs(data);
 
         const existing = await loadPlan();
@@ -252,13 +213,8 @@ export default function Home() {
               {profileMenuOpen ? (
                 <div className="absolute right-0 top-12 z-50 min-w-[190px] rounded-2xl border border-[#F0E6D8] bg-white p-2 shadow-xl">
                   {userName ? (
-                    <div className="flex items-center gap-2 px-3 py-1.5">
+                    <div className="px-3 py-1.5">
                       <p className="text-xs font-medium uppercase tracking-wide text-[#8A8178]">{userName}</p>
-                      {subscriptionTier === "pro" ? (
-                        <span className="rounded-full bg-[#F2D06B] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#2E2A27]">
-                          Pro
-                        </span>
-                      ) : null}
                     </div>
                   ) : null}
                   <button
@@ -271,34 +227,6 @@ export default function Home() {
                   >
                     Settings
                   </button>
-                  {subscriptionTier === "free" && !isNativeApp ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        void handleUpgrade();
-                      }}
-                      disabled={isUpgrading}
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-[#E5A78D] transition-colors hover:bg-[#FBF1EC] disabled:opacity-50"
-                    >
-                      {isUpgrading ? "Redirecting…" : "Upgrade to Pro"}
-                    </button>
-                  ) : subscriptionTier === "free" ? (
-                    <p className="px-3 py-2 text-xs text-[#8A8178]">
-                      Upgrade to Pro at tystable.app
-                    </p>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        void handleManageBilling();
-                      }}
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-[#2E2A27]/70 transition-colors hover:bg-[#FDF9F7]"
-                    >
-                      Manage Billing
-                    </button>
-                  )}
                   <div className="my-1 border-t border-[#F0E6D8]" />
                   <button
                     type="button"

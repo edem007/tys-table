@@ -79,10 +79,9 @@ Answer these yourself in Play Console; this is a legal certification under your 
 | User-generated content shared with others | No |
 | Users can communicate with each other | No |
 | Shares user's location with other users | No |
-| Digital purchases | **Yes** — the app has a Pro subscription (currently sold via the
-  website/Stripe, not Play Billing, since it's hidden in-app; double-check Google's current
-  "external offers"/payments policy language to make sure this framing is still accurate
-  before you certify) |
+| Digital purchases | **No** — the Pro/subscription upsell has been removed from the app entirely
+  (2026-07-08, no real subscribers yet); Stripe backend code is still in the repo but unreachable
+  from the UI. Revisit this answer if/when Pro comes back. |
 
 ## 8. Data safety form — draft answers
 
@@ -92,7 +91,6 @@ Answer these yourself in Play Console; this is a legal certification under your 
 | Email address | Yes | Account/auth | Supabase (auth provider) |
 | Approximate location | Yes (city, user-typed — not device GPS) | Restaurant matching | Google Places, Spoonacular |
 | App activity (meal plans, choices) | Yes | App functionality | Not shared |
-| Purchase history / subscription status | Yes | Billing | Stripe |
 
 - Data encrypted in transit: **Yes** (HTTPS via Vercel/Supabase)
 - Users can request data deletion: **Yes** — via info@pjandtinc.com (linked from the privacy policy)
@@ -101,8 +99,10 @@ Answer these yourself in Play Console; this is a legal certification under your 
 
 ## 9. Known open items (not blocking submission, but worth tracking)
 
-- **Pro tier has no functional difference from Free** — currently just a badge. Worth deciding
-  what Pro actually unlocks before marketing it further.
+- **Pro tier removed from the UI (2026-07-08)** — it had no functional difference from Free
+  (just a badge) and no real subscribers, so the upgrade/billing UI was pulled entirely rather
+  than shipped half-finished. Stripe backend code is untouched in case Pro comes back later;
+  revisit the "Digital purchases" content rating answer above if it does.
 - **iOS** — separate submission, needs a Mac + Xcode; Apple will likely require either real
   native functionality (e.g. push notifications) or an App Store Connect exemption request,
   plus a decision on Apple In-App Purchase vs. web-only billing.
