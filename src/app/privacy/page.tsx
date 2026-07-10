@@ -23,10 +23,11 @@ export default function PrivacyPage() {
           information those providers share with us.
         </li>
         <li>
-          <strong>Profile &amp; preferences:</strong> your first name, city,
-          cuisine preferences, allergies, party size, monthly dining budget,
-          and how many nights a week you cook, all of which you provide
-          during onboarding to personalize your weekly plan.
+          <strong>Profile &amp; preferences:</strong> your cuisine
+          preferences, allergies, party size, monthly dining budget, and how
+          many nights a week you cook, all of which you provide during
+          onboarding to personalize your weekly plan. Restaurant suggestions
+          default to the Dallas, TX area.
         </li>
         <li>
           <strong>Usage data:</strong> your weekly meal plans, which days you
