@@ -34,32 +34,44 @@ export async function GET(req: NextRequest) {
   const keyword = CUISINE_TO_SEARCH_KEYWORD[cuisine] ?? cuisine;
   const textQuery = `${keyword} restaurants in ${city}`;
 
-  try {
+  async function searchPlaces(priceLevels?: string[]): Promise<PlacesResult[] | Response> {
     const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Goog-Api-Key": apiKey,
+        "X-Goog-Api-Key": apiKey!,
         "X-Goog-FieldMask":
           "places.id,places.displayName,places.rating,places.priceLevel,places.formattedAddress,places.editorialSummary,places.photos",
       },
       body: JSON.stringify({
         textQuery,
         minRating,
-        priceLevels: priceLevelsForBudget(budgetPerPerson),
+        ...(priceLevels ? { priceLevels } : {}),
         maxResultCount: 8,
       }),
     });
+    if (!res.ok) return res;
+    const data = (await res.json()) as { places?: PlacesResult[] };
+    return data.places ?? [];
+  }
 
-    if (!res.ok) {
+  try {
+    // Strict pass first (budget-matched price levels); some cuisine/city combos
+    // have no 4.3+ places at the cheapest tier, so fall back to any price
+    // rather than leaving the day with zero picks.
+    let places = await searchPlaces(priceLevelsForBudget(budgetPerPerson));
+    if (Array.isArray(places) && places.length === 0) {
+      places = await searchPlaces(undefined);
+    }
+
+    if (!Array.isArray(places)) {
       return NextResponse.json(
-        { error: "Google Places search failed", detail: await res.text() },
-        { status: res.status },
+        { error: "Google Places search failed", detail: await places.text() },
+        { status: places.status },
       );
     }
 
-    const data = (await res.json()) as { places?: PlacesResult[] };
-    const restaurants: PlanRestaurantOption[] = (data.places ?? [])
+    const restaurants: PlanRestaurantOption[] = places
       .filter((p) => (p.rating ?? 0) >= minRating)
       .map((p) => {
         const photoName = p.photos?.[0]?.name;

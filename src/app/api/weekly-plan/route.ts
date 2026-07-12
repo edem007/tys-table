@@ -92,10 +92,13 @@ export async function POST(req: NextRequest) {
     }
 
     const cuisinesForRotation = prefs.cuisines.length ? prefs.cuisines : ["soul food"];
+    // Rotate by eat-out ordinal, not day-of-week index — indexing by day made
+    // different eat-out days collide on the same cuisine and skip others.
+    let eatOutOrdinal = 0;
     const restaurantOptionsPerDay = await Promise.all(
-      dayTypes.map(async (type, i) => {
+      dayTypes.map(async (type) => {
         if (type !== "eat-out") return null;
-        const cuisine = cuisinesForRotation[i % cuisinesForRotation.length];
+        const cuisine = cuisinesForRotation[eatOutOrdinal++ % cuisinesForRotation.length];
         const res = await fetch(
           `${origin}/api/restaurants?cuisine=${encodeURIComponent(cuisine)}&city=${encodeURIComponent(city)}&budgetPerPerson=${Math.round(perPersonBudget)}&minRating=4.3`,
           { headers: { cookie: cookieHeader } },

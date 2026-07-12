@@ -388,6 +388,15 @@ export default function Home() {
                         4.3+ rated and matched to your budget. Restaurant menus aren&rsquo;t
                         allergy-verified — always mention your allergies when you order.
                       </p>
+                      {selectedDay.restaurant_options.length === 0 ? (
+                        <div className="rounded-3xl bg-white p-6 text-center shadow-sm">
+                          <p className="text-sm text-[#8A8178]">
+                            We couldn&rsquo;t find restaurants matching your preferences for
+                            this night. Try adjusting your cuisines or budget in Settings,
+                            then your plan will refresh.
+                          </p>
+                        </div>
+                      ) : null}
                       <div className="space-y-3">
                         {selectedDay.restaurant_options.map((r) => (
                           <div key={r.id} className="overflow-hidden rounded-3xl bg-white shadow-sm">
